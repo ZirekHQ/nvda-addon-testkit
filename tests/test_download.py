@@ -7,7 +7,7 @@ from nvda_testkit.errors import HashMismatchError
 from nvda_testkit.resolve import LauncherInfo
 
 PAYLOAD = b"pretend this is nvda_2026.1.1.exe"
-PAYLOAD_SHA1 = hashlib.sha1(PAYLOAD).hexdigest()  # noqa: S324
+PAYLOAD_SHA1 = hashlib.sha1(PAYLOAD).hexdigest()
 
 
 def _info(sha1=PAYLOAD_SHA1, channel="stable", version="2026.1.1"):
