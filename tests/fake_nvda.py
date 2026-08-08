@@ -21,13 +21,15 @@ from pathlib import Path
 from xmlrpc.server import SimpleXMLRPCServer
 
 HANDSHAKE_FILENAME = "testkit-handshake.json"
+ADDONS_STATE_FILENAME = "testkit-addons.json"
 
 
 class FakeSpy:
-    def __init__(self, token: str, script: dict) -> None:
+    def __init__(self, token: str, script: dict, out_dir: str | None = None) -> None:
         self._token = token
         self._script = script
         self._lock = threading.RLock()
+        self._addons_file = Path(out_dir) / ADDONS_STATE_FILENAME if out_dir else None
         self._speech: list[dict] = []
         for canned in script.get("speech", []):
             self._speech.append({"items": canned, "timestamp": 0.0})
@@ -40,9 +42,29 @@ class FakeSpy:
         }
         self._log: list[dict] = []
         self._addons: dict[str, dict] = {}
-        for name, entry in (script.get("installed_addons") or {}).items():
-            self._addons[name] = {"name": name, "version": "1.0.0", "state": entry}
+        self._load_addons()
         self.stop_requested = threading.Event()
+
+    def _load_addons(self) -> None:
+        """Mirror NVDA's own .pendingInstall handling: state survives a real
+        process restart because it lives in a file, not in this instance."""
+        if self._addons_file is not None and self._addons_file.is_file():
+            self._addons = json.loads(self._addons_file.read_text(encoding="utf-8"))
+        else:
+            for name, state in (self._script.get("installed_addons") or {}).items():
+                self._addons[name] = {"name": name, "version": "1.0.0", "state": state}
+        for name in [n for n, entry in self._addons.items() if entry["state"] == "PENDING_REMOVE"]:
+            del self._addons[name]
+        for entry in self._addons.values():
+            if entry["state"] == "PENDING_INSTALL":
+                entry["state"] = "ENABLED"
+        self._save_addons()
+
+    def _save_addons(self) -> None:
+        if self._addons_file is None:
+            return
+        self._addons_file.parent.mkdir(parents=True, exist_ok=True)
+        self._addons_file.write_text(json.dumps(self._addons), encoding="utf-8")
 
     def _dispatch(self, method: str, params: tuple):
         # Method lookup before auth, matching the real spy's registry.Dispatcher.
@@ -202,6 +224,7 @@ class FakeSpy:
         entry = {"name": "demo-addon", "version": "1.0.0", "state": "PENDING_INSTALL"}
         with self._lock:
             self._addons[entry["name"]] = entry
+            self._save_addons()
         return dict(entry)
 
     def rpc_addons_list(self):
@@ -218,6 +241,7 @@ class FakeSpy:
             if name not in self._addons:
                 raise LookupError(f"Add-on {name!r} is not installed")
             self._addons[name]["state"] = "PENDING_REMOVE"
+            self._save_addons()
         return True
 
 
@@ -234,7 +258,7 @@ def main() -> int:
     if exit_code is not None:
         return int(exit_code)
 
-    spy = FakeSpy(token, script)
+    spy = FakeSpy(token, script, out_dir)
     server = SimpleXMLRPCServer(("127.0.0.1", 0), allow_none=True, logRequests=False)
     server.register_instance(spy, allow_dotted_names=False)
     port = server.server_address[1]

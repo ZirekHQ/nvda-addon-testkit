@@ -21,7 +21,7 @@ def client(fake_nvda):
 
 
 def test_every_namespace_is_present(client):
-    for name in ("speech", "braille", "keys", "config", "log"):
+    for name in ("speech", "braille", "keys", "config", "log", "addons"):
         assert hasattr(client, name), f"nvda.{name} missing"
 
 

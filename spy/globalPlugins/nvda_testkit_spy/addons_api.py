@@ -12,6 +12,8 @@ from .registry import rpc_method
 
 
 def _state_of(addon):
+    # INCOMPATIBLE has no branch here and is unreachable: incompatibility
+    # reporting is Phase 6, not this slice.
     if addon.isPendingRemove:
         return "PENDING_REMOVE"
     if addon.isPendingInstall:
@@ -38,17 +40,28 @@ def _describe(addon):
     }
 
 
-@rpc_method
-def addons_list():
+def _list():
     import addonHandler
 
     return [_describe(addon) for addon in addonHandler.getAvailableAddons(refresh=True)]
 
 
 @rpc_method
-def addons_state(name):
+def addons_list(timeout=10.0):
+    # refresh=True rescans and rebuilds addonHandler's internal list, which is
+    # closer to a mutation than a read; racing it against installAddonBundle
+    # or requestRemove on the main thread would be a Windows-only flake.
+    return run_on_main_thread(_list, timeout=timeout)
+
+
+def _state(name):
     addon = _find(name)
     return _state_of(addon) if addon is not None else "NOT_INSTALLED"
+
+
+@rpc_method
+def addons_state(name, timeout=10.0):
+    return run_on_main_thread(lambda: _state(name), timeout=timeout)
 
 
 def _install(bundle_path):
