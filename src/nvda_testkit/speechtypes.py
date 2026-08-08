@@ -45,7 +45,11 @@ class SpeechSequence:
 
     @property
     def text(self) -> str:
-        return " ".join(item.text for item in self.items if item.kind == "text" and item.text)
+        # Space-join then collapse. NVDA emits both ["Install", "button"] and
+        # ["Install", " ", "button"]; a plain " ".join doubles the space in the
+        # second shape and breaks the regex a test author would naturally write.
+        joined = " ".join(item.text for item in self.items if item.kind == "text" and item.text)
+        return re.sub(r"\s+", " ", joined).strip()
 
     def commands(self, type_name: str) -> list[SpeechItem]:
         return [item for item in self.items if item.command_type == type_name]

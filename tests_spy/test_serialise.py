@@ -48,6 +48,27 @@ def test_private_attributes_are_not_serialised():
     assert "_hidden" not in item["fields"]
 
 
+def test_a_slots_only_command_degrades_to_an_empty_fields_dict_not_a_crash():
+    from nvda_testkit_spy.serialise import serialise_sequence
+
+    class SlottedCommand:
+        __slots__ = ("value",)
+
+        def __init__(self, value):
+            self.value = value
+
+        def __repr__(self):
+            return f"SlottedCommand({self.value!r})"
+
+    (item,) = serialise_sequence([SlottedCommand(5)])
+    assert item == {
+        "kind": "command",
+        "type": "SlottedCommand",
+        "fields": {},
+        "repr": "SlottedCommand(5)",
+    }
+
+
 def test_everything_produced_survives_an_xmlrpc_round_trip():
     import xmlrpc.client
 

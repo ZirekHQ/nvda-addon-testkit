@@ -77,3 +77,29 @@ def test_a_partial_start_failure_stops_the_partially_started_server(
 
     assert plugin._server is None
     assert len(stopped) == 1
+
+
+def test_a_partial_start_failure_also_removes_the_speech_tap(monkeypatch, tmp_path, event_queue):
+    import nvda_testkit_spy
+    from nvda_testkit_spy import server as server_module
+    from nvda_testkit_spy import speech_tap as speech_tap_module
+
+    calls = []
+    real_uninstall = speech_tap_module.uninstall
+
+    def tracking_uninstall():
+        calls.append(True)
+        real_uninstall()
+
+    def fake_start(self):
+        raise RuntimeError("handshake write failed")
+
+    monkeypatch.setattr(server_module.SpyServer, "start", fake_start)
+    monkeypatch.setattr(speech_tap_module, "uninstall", tracking_uninstall)
+    monkeypatch.setenv("NVDA_TESTKIT_TOKEN", "tok")
+    monkeypatch.setenv("NVDA_TESTKIT_OUTDIR", str(tmp_path))
+
+    plugin = nvda_testkit_spy.GlobalPlugin()  # must not propagate fake_start's exception
+
+    assert plugin._server is None
+    assert calls == [True], "a failed start must uninstall the speech tap, not just the server"

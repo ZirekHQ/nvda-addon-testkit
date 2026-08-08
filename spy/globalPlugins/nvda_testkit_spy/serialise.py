@@ -18,7 +18,14 @@ def _scalarise(value):
 
 def serialise_command(command):
     fields = {}
-    for name, value in vars(command).items():
+    try:
+        attributes = vars(command)
+    except TypeError:
+        # A __slots__-only command has no __dict__. Core NVDA commands all have
+        # one, but a third-party synth's might not -- fall back to the repr
+        # rather than losing the whole sequence.
+        attributes = {}
+    for name, value in attributes.items():
         if name.startswith("_"):
             continue
         fields[name] = _scalarise(value)

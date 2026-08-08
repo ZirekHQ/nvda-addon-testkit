@@ -87,3 +87,17 @@ def test_clear_resets_the_cursor(speech):
     namespace.clear()
     assert namespace.index() == 0
     assert namespace.all() == []
+
+
+def test_speak_and_cancel_round_trip_through_the_wire(speech):
+    namespace, _ = speech
+    namespace.speak("hello")
+    assert namespace.index() == 1
+    assert namespace.last().text == "hello"
+    namespace.cancel()
+    assert namespace.cancel_count() == 0
+
+
+def test_wait_for_done_returns_once_nvda_reports_idle(speech):
+    namespace, _ = speech
+    namespace.wait_for_done(timeout=2)

@@ -12,6 +12,7 @@ import os
 import globalPluginHandler
 from logHandler import log
 
+from . import speech_tap
 from .server import SpyServer
 
 
@@ -27,8 +28,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             return
 
         try:
-            from . import speech_tap
-
             speech_tap.install()
             self._server = SpyServer(token, out_dir)
             self._server.start()
@@ -44,11 +43,14 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 with contextlib.suppress(Exception):
                     self._server.stop()
             self._server = None
+            # install() may have succeeded before SpyServer failed. Left
+            # registered, the tap keeps capturing into _SEQUENCES forever with
+            # no RPC server alive to ever call speech_clear().
+            with contextlib.suppress(Exception):
+                speech_tap.uninstall()
 
     def terminate(self):
         try:
-            from . import speech_tap
-
             speech_tap.uninstall()
         except Exception:
             log.exception("nvda-testkit spy failed to remove its speech tap")

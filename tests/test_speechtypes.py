@@ -19,6 +19,26 @@ def test_text_items_join_into_the_text_property():
     assert sequence.text == "hello world"
 
 
+def test_adjacent_text_items_with_no_intervening_command_join_with_one_space():
+    sequence = parse_sequence(
+        _payload([{"kind": "text", "text": "Install"}, {"kind": "text", "text": "button"}])
+    )
+    assert sequence.text == "Install button"
+
+
+def test_a_text_item_that_is_an_explicit_space_does_not_double_up():
+    sequence = parse_sequence(
+        _payload(
+            [
+                {"kind": "text", "text": "Install"},
+                {"kind": "text", "text": " "},
+                {"kind": "text", "text": "button"},
+            ]
+        )
+    )
+    assert sequence.text == "Install button"
+
+
 def test_commands_are_retrievable_by_type_name():
     sequence = parse_sequence(
         _payload(
