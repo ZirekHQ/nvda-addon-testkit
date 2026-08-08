@@ -116,6 +116,43 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     extension_points.Action = FakeAction
     extension_points.Filter = FakeFilter
 
+    speech_extensions = types.ModuleType("speech.extensions")
+    speech_extensions.pre_speech = FakeAction()
+    speech_extensions.pre_speechQueued = FakeAction()
+    speech_extensions.filter_speechSequence = FakeFilter()
+    speech_extensions.speechCanceled = FakeAction()
+    speech_extensions.pre_speechCanceled = FakeAction()
+    speech_extensions.post_speechPaused = FakeAction()
+
+    speech_commands = types.ModuleType("speech.commands")
+
+    class _Command:
+        def __repr__(self):
+            fields = ", ".join(f"{k}={v!r}" for k, v in sorted(vars(self).items()))
+            return f"{type(self).__name__}({fields})"
+
+    class IndexCommand(_Command):
+        def __init__(self, index):
+            self.index = index
+
+    class LangChangeCommand(_Command):
+        def __init__(self, lang):
+            self.lang = lang
+
+    class BreakCommand(_Command):
+        def __init__(self, time):
+            self.time = time
+
+    speech_commands.IndexCommand = IndexCommand
+    speech_commands.LangChangeCommand = LangChangeCommand
+    speech_commands.BreakCommand = BreakCommand
+
+    speech = types.ModuleType("speech")
+    speech.extensions = speech_extensions
+    speech.commands = speech_commands
+    speech.speak = MagicMock()
+    speech.cancelSpeech = MagicMock()
+
     modules = {
         "queueHandler": queue_handler,
         "logHandler": log_handler,
@@ -125,6 +162,9 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
         "addonAPIVersion": addon_api_version,
         "core": core,
         "extensionPoints": extension_points,
+        "speech": speech,
+        "speech.extensions": speech_extensions,
+        "speech.commands": speech_commands,
     }
     sys.modules.update(modules)
     modules["_eventQueue"] = queue

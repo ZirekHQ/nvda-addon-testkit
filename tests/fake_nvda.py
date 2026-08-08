@@ -77,6 +77,20 @@ class FakeSpy:
             self._speech.append({"items": items, "timestamp": time.time()})
         return len(self._speech)
 
+    def rpc_speech_clear(self):
+        with self._lock:
+            self._speech.clear()
+        return True
+
+    def rpc_speech_cancel_count(self):
+        return self._script.get("cancel_count", 0)
+
+    def rpc_speech_speak(self, text):
+        return self.rpc_speech_emit([{"kind": "text", "text": text}])
+
+    def rpc_speech_cancel(self):
+        return True
+
     def rpc_quit(self):
         if not self._script.get("ignore_quit"):
             self.stop_requested.set()

@@ -27,6 +27,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             return
 
         try:
+            from . import speech_tap
+
+            speech_tap.install()
             self._server = SpyServer(token, out_dir)
             self._server.start()
         except Exception:
@@ -43,6 +46,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             self._server = None
 
     def terminate(self):
+        try:
+            from . import speech_tap
+
+            speech_tap.uninstall()
+        except Exception:
+            log.exception("nvda-testkit spy failed to remove its speech tap")
         if self._server is not None:
             self._server.stop()
             self._server = None
