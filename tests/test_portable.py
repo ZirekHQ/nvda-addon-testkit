@@ -1,9 +1,11 @@
+import subprocess
 import sys
 import zipfile
 
 import pytest
 
-from nvda_testkit.errors import ProvisionError, UnsupportedPlatformError
+from nvda_testkit import portable
+from nvda_testkit.errors import ProvisionError, TestkitError, UnsupportedPlatformError
 from nvda_testkit.portable import (
     create_portable,
     extract_addon,
@@ -77,6 +79,34 @@ def test_extract_addon_rejects_a_bundle_without_a_manifest(tmp_path):
     bundle = _make_bundle(tmp_path / "nomanifest.nvda-addon", {"readme.txt": "hi"})
     with pytest.raises(ProvisionError, match=r"manifest\.ini"):
         extract_addon(bundle, tmp_path / "out")
+
+
+def test_extract_addon_refuses_absolute_paths_that_escape(tmp_path):
+    bundle = _make_bundle(
+        tmp_path / "evil.nvda-addon",
+        {"/etc/passwd": "pwned", "manifest.ini": "name=evil"},
+    )
+    with pytest.raises(ProvisionError, match="escapes"):
+        extract_addon(bundle, tmp_path / "out")
+    assert not (tmp_path / "etc" / "passwd").exists()
+
+
+def test_create_portable_wraps_a_timeout_in_a_testkit_error(tmp_path, monkeypatch):
+    launcher = tmp_path / "launcher.exe"
+    launcher.write_bytes(b"stub")
+
+    def explode(*args, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd="launcher.exe", timeout=300, output="partial", stderr=None
+        )
+
+    monkeypatch.setattr(portable.sys, "platform", "win32")
+    monkeypatch.setattr(portable.subprocess, "run", explode)
+
+    with pytest.raises(ProvisionError, match="timed out"):
+        portable.create_portable(launcher, tmp_path / "portable")
+    with pytest.raises(TestkitError):
+        portable.create_portable(launcher, tmp_path / "portable")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="checks the non-Windows guard")

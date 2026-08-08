@@ -127,13 +127,20 @@ def create_portable(launcher: Path, dest: Path, *, timeout: float = 300) -> Port
     if not launcher.is_file():
         raise ProvisionError(f"Launcher not found: {launcher}")
 
-    completed = subprocess.run(
-        [str(launcher), "--create-portable-silent", f"--portable-path={dest}"],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            [str(launcher), "--create-portable-silent", f"--portable-path={dest}"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as expired:
+        raise ProvisionError(
+            f"Creating a portable copy timed out after {timeout}s. Launcher: {launcher}\n"
+            f"stdout so far: {expired.stdout!r}\nstderr so far: {expired.stderr!r}"
+        ) from expired
+
     exe = dest / "nvda.exe"
     if completed.returncode != 0 or not exe.is_file():
         raise ProvisionError(
