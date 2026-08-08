@@ -1,4 +1,5 @@
 import time
+import xmlrpc.client
 
 import pytest
 
@@ -103,3 +104,24 @@ def test_timeout_scale_stretches_polls(fake_nvda):
         assert time.monotonic() - started >= 1.0, "0.2s * 5.0 scale should be ~1s"
     finally:
         proc.kill()
+
+
+def test_protocol_error_is_translated_to_rpc_error(client, monkeypatch):
+    def raise_protocol_error(*args, **kwargs):
+        raise xmlrpc.client.ProtocolError("127.0.0.1:1/RPC2", 500, "Internal Server Error", {})
+
+    monkeypatch.setattr(client._proxy, "test_method", raise_protocol_error)
+    with pytest.raises(RpcError) as excinfo:
+        client.call("test_method")
+    assert not isinstance(excinfo.value, AuthError)
+    assert "500" in str(excinfo.value)
+
+
+def test_socket_timeout_is_finite_and_applied():
+    rpc = RpcClient(1234, "tok", socket_timeout=7.5)
+    transport = rpc._proxy._ServerProxy__transport
+    assert transport._timeout == 7.5
+
+    rpc_scaled = RpcClient(1234, "tok", socket_timeout=7.5, timeout_scale=2.0)
+    transport_scaled = rpc_scaled._proxy._ServerProxy__transport
+    assert transport_scaled._timeout == 15.0
