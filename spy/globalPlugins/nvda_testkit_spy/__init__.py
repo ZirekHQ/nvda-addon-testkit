@@ -12,6 +12,7 @@ import os
 import globalPluginHandler
 from logHandler import log
 
+from . import addons_api as addons_api  # re-export: the import alone registers its rpc_method's
 from . import braille_tap, log_tap, speech_tap
 from . import config_api as config_api  # re-export: the import alone registers its rpc_method's
 from . import input_api as input_api  # re-export: the import alone registers its rpc_method's

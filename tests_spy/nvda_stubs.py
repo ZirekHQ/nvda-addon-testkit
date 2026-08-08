@@ -225,6 +225,40 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     input_core.manager = MagicMock()
     input_core.NoInputGestureAction = type("NoInputGestureAction", (Exception,), {})
 
+    addon_handler = types.ModuleType("addonHandler")
+
+    class _FakeAddon:
+        def __init__(self, name, version="1.0.0", pending_install=False):
+            self.name = name
+            self.version = version
+            self.isPendingInstall = pending_install
+            self.isPendingRemove = False
+            self.isDisabled = False
+            self.isRunning = not pending_install
+
+        def requestRemove(self):
+            self.isPendingRemove = True
+
+    addon_handler.Addon = _FakeAddon
+    addon_handler.INSTALLED = []
+
+    class AddonBundle:
+        def __init__(self, path):
+            self.path = path
+            self.manifest = {"name": "demo-addon", "version": "1.0.0"}
+
+    addon_handler.AddonBundle = AddonBundle
+
+    def _install_addon_bundle(bundle):
+        addon = _FakeAddon(
+            bundle.manifest["name"], bundle.manifest["version"], pending_install=True
+        )
+        addon_handler.INSTALLED.append(addon)
+        return addon
+
+    addon_handler.installAddonBundle = _install_addon_bundle
+    addon_handler.getAvailableAddons = lambda refresh=False: iter(list(addon_handler.INSTALLED))
+
     modules = {
         "queueHandler": queue_handler,
         "logHandler": log_handler,
@@ -243,6 +277,7 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
         "braille.display": braille_display,
         "keyboardHandler": keyboard_handler,
         "inputCore": input_core,
+        "addonHandler": addon_handler,
     }
     sys.modules.update(modules)
     modules["_eventQueue"] = queue

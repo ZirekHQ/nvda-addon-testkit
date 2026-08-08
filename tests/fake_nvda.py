@@ -39,6 +39,9 @@ class FakeSpy:
             "braille": {"display": "noBraille"},
         }
         self._log: list[dict] = []
+        self._addons: dict[str, dict] = {}
+        for name, entry in (script.get("installed_addons") or {}).items():
+            self._addons[name] = {"name": name, "version": "1.0.0", "state": entry}
         self.stop_requested = threading.Event()
 
     def _dispatch(self, method: str, params: tuple):
@@ -195,10 +198,27 @@ class FakeSpy:
     def rpc_eval_in_nvda(self, source):
         return eval(source, {"__builtins__": {}}, {})  # test double only
 
-    def rpc_addons_install(self, bundle_path):
-        self._installed = getattr(self, "_installed", [])
-        self._installed.append(bundle_path)
-        return {"name": "fake-addon", "state": "PENDING_INSTALL"}
+    def rpc_addons_install(self, bundle_path, timeout=120.0):
+        entry = {"name": "demo-addon", "version": "1.0.0", "state": "PENDING_INSTALL"}
+        with self._lock:
+            self._addons[entry["name"]] = entry
+        return dict(entry)
+
+    def rpc_addons_list(self):
+        with self._lock:
+            return [dict(entry) for entry in self._addons.values()]
+
+    def rpc_addons_state(self, name):
+        with self._lock:
+            entry = self._addons.get(name)
+        return entry["state"] if entry else "NOT_INSTALLED"
+
+    def rpc_addons_remove(self, name, timeout=60.0):
+        with self._lock:
+            if name not in self._addons:
+                raise LookupError(f"Add-on {name!r} is not installed")
+            self._addons[name]["state"] = "PENDING_REMOVE"
+        return True
 
 
 def main() -> int:

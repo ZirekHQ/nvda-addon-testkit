@@ -25,6 +25,11 @@ def test_every_namespace_is_present(client):
         assert hasattr(client, name), f"nvda.{name} missing"
 
 
+def test_the_addons_namespace_is_attached(client):
+    assert hasattr(client, "addons")
+    assert client.addons.state("nothing").value == "NOT_INSTALLED"
+
+
 def test_version_reports_what_the_handshake_said(client):
     version = client.version
     assert isinstance(version, NvdaVersion)

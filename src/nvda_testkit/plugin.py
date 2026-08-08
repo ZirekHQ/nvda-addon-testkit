@@ -132,6 +132,6 @@ def addon_bundle(nvda_settings) -> Path:
 @pytest.fixture(scope="session")
 def addon_under_test(nvda_session: NvdaClient, addon_bundle: Path) -> Path:
     """The bundle, installed and enabled, with NVDA restarted to complete it."""
-    nvda_session.rpc.call("addons_install", str(addon_bundle.resolve()))
+    nvda_session.addons.install(addon_bundle)
     nvda_session.restart()
     return addon_bundle
