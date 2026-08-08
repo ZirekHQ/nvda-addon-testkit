@@ -140,10 +140,12 @@ def test_a_partial_start_failure_removes_the_other_tap_even_if_one_uninstall_rai
     from nvda_testkit_spy import speech_tap as speech_tap_module
 
     calls = []
+    real_speech_uninstall = speech_tap_module.uninstall
     real_braille_uninstall = braille_tap_module.uninstall
 
     def failing_speech_uninstall():
         calls.append("speech")
+        real_speech_uninstall()
         raise RuntimeError("speech tap refused to uninstall")
 
     def tracking_braille_uninstall():
@@ -172,19 +174,28 @@ def test_terminate_removes_the_other_tap_even_if_one_uninstall_raises(
 ):
     import nvda_testkit_spy
     from nvda_testkit_spy import braille_tap as braille_tap_module
+    from nvda_testkit_spy import server as server_module
     from nvda_testkit_spy import speech_tap as speech_tap_module
 
     calls = []
+    real_speech_uninstall = speech_tap_module.uninstall
     real_braille_uninstall = braille_tap_module.uninstall
 
     def failing_speech_uninstall():
         calls.append("speech")
+        real_speech_uninstall()
         raise RuntimeError("speech tap refused to uninstall")
 
     def tracking_braille_uninstall():
         calls.append("braille")
         real_braille_uninstall()
 
+    def fake_start(self):
+        # This test only cares about tap-uninstall ordering, not the server;
+        # stubbing start() avoids binding a real socket like its siblings do.
+        pass
+
+    monkeypatch.setattr(server_module.SpyServer, "start", fake_start)
     monkeypatch.setenv("NVDA_TESTKIT_TOKEN", "tok")
     monkeypatch.setenv("NVDA_TESTKIT_OUTDIR", str(tmp_path))
 
