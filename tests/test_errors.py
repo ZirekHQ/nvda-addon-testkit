@@ -42,3 +42,15 @@ def test_hash_mismatch_reports_both_digests():
     assert "aaa" in str(err)
     assert "bbb" in str(err)
     assert "/tmp/x.exe" in str(err)
+
+
+def test_wait_timeout_reports_description_and_timeout_without_last_seen():
+    err = WaitTimeout("speech matching 'x'", 2.5)
+    assert "speech matching 'x'" in str(err)
+    assert "2.5" in str(err)
+    assert "Last seen" not in str(err)
+
+
+def test_wait_timeout_reports_last_seen_when_given():
+    err = WaitTimeout("d", 1.0, last_seen=["a", "b"])
+    assert "['a', 'b']" in str(err)

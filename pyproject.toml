@@ -41,3 +41,7 @@ markers = [
     "windows_only: requires a real Windows host",
     "fresh_nvda: restart NVDA before this test",
 ]
+# Production names TestkitError / TestkitSettings match pytest's default Test*
+# glob; narrow it so they are not collection candidates. Class-based tests must
+# therefore be named *Tests.
+python_classes = ["*Tests"]
