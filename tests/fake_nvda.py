@@ -192,6 +192,9 @@ class FakeSpy:
             self.stop_requested.set()
         return True
 
+    def rpc_eval_in_nvda(self, source):
+        return eval(source, {"__builtins__": {}}, {})  # test double only
+
 
 def main() -> int:
     token = os.environ.get("NVDA_TESTKIT_TOKEN")
