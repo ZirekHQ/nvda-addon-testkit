@@ -55,6 +55,57 @@ def test_reset_restores_config_to_the_baseline(client):
     assert client.config.get(("speech", "synth")) == "espeak"
 
 
+def test_reset_attempts_every_step_even_if_one_fails(client, monkeypatch):
+    client.speech.speak("noise")
+    client.log._rpc.call("log_emit", "INFO", "noise")
+    client.config.set(("speech", "synth"), "changed")
+
+    def _boom():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(client.braille, "clear", _boom)
+
+    with pytest.raises(TestkitError, match="braille"):
+        client.reset()
+
+    # These would still show their pre-reset values if a braille failure had
+    # short-circuited the rest of reset() -- that is what this test is for.
+    assert client.speech.index() == 0
+    assert client.log.index() == 0
+    assert client.config.get(("speech", "synth")) == "espeak"
+
+
+def test_restart_rebuilds_namespaces_and_preserves_the_pre_restart_baseline(fake_nvda):
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    rpc.call("config_set", ["speech", "synth"], "custom-baseline")
+    client = NvdaClient(proc, rpc)
+    try:
+        old_rpc = client.rpc
+        old_pid = proc.handshake.pid
+
+        client.config.set(("speech", "synth"), "changed-before-restart")
+
+        client.restart(timeout=20)
+
+        assert client.rpc is not old_rpc
+        assert client.process.handshake.pid != old_pid
+        # A namespace call succeeding proves it was rebuilt against the new
+        # port rather than left pointed at the closed one.
+        assert client.speech.index() == 0
+
+        # If restart() had re-taken the baseline against the fresh process
+        # (default "espeak"), this would restore "espeak" instead and fail.
+        client.reset()
+        assert client.config.get(("speech", "synth")) == "custom-baseline"
+    finally:
+        client.close()
+        proc.kill()
+
+
 def test_eval_is_refused_unless_explicitly_allowed(client):
     with pytest.raises(TestkitError, match="--nvda-allow-eval"):
         client.eval("1 + 1")

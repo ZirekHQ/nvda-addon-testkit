@@ -72,10 +72,21 @@ class NvdaClient:
 
     def reset(self) -> None:
         """Return NVDA to the state a test should start from."""
-        self.speech.clear()
-        self.braille.clear()
-        self.log.clear()
-        self.config.restore(self._baseline_config)
+        # Attempt every step even if one fails, then report. A partial reset is
+        # worse than a failed one: it is inherited silently by the next test.
+        failures = []
+        for label, step in (
+            ("speech", self.speech.clear),
+            ("braille", self.braille.clear),
+            ("log", self.log.clear),
+            ("config", lambda: self.config.restore(self._baseline_config)),
+        ):
+            try:
+                step()
+            except Exception as error:
+                failures.append(f"{label}: {error}")
+        if failures:
+            raise TestkitError("reset() failed for " + "; ".join(failures))
 
     def restart(self, *, timeout: float = 60.0) -> None:
         handshake = self._process.restart(timeout=timeout)
