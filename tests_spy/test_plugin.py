@@ -1,0 +1,79 @@
+import threading
+
+
+def test_the_plugin_is_inert_without_session_environment(monkeypatch, event_queue):
+    import logHandler
+    import nvda_testkit_spy
+
+    monkeypatch.delenv("NVDA_TESTKIT_TOKEN", raising=False)
+    monkeypatch.delenv("NVDA_TESTKIT_OUTDIR", raising=False)
+    logHandler.log.reset_mock()
+
+    plugin = nvda_testkit_spy.GlobalPlugin()
+
+    assert plugin._server is None
+    logHandler.log.info.assert_called_once()
+    assert "idle" in logHandler.log.info.call_args[0][0]
+
+
+def test_the_plugin_starts_and_terminates_a_server(monkeypatch, tmp_path, event_queue):
+    import nvda_testkit_spy
+
+    monkeypatch.setenv("NVDA_TESTKIT_TOKEN", "tok")
+    monkeypatch.setenv("NVDA_TESTKIT_OUTDIR", str(tmp_path))
+
+    plugin = nvda_testkit_spy.GlobalPlugin()
+    try:
+        assert plugin._server is not None
+        assert (tmp_path / "testkit-handshake.json").exists()
+    finally:
+        plugin.terminate()
+
+    assert plugin._server is None
+
+
+def test_terminate_is_safe_when_nothing_was_started(monkeypatch, event_queue):
+    import nvda_testkit_spy
+
+    monkeypatch.delenv("NVDA_TESTKIT_TOKEN", raising=False)
+    monkeypatch.delenv("NVDA_TESTKIT_OUTDIR", raising=False)
+
+    plugin = nvda_testkit_spy.GlobalPlugin()
+    plugin.terminate()  # must not raise
+
+
+def test_a_partial_start_failure_stops_the_partially_started_server(
+    monkeypatch, tmp_path, event_queue
+):
+    import nvda_testkit_spy
+    from nvda_testkit_spy import server as server_module
+
+    stopped = []
+    real_stop = server_module.SpyServer.stop
+
+    def tracking_stop(self):
+        stopped.append(self)
+        real_stop(self)
+
+    def fake_start(self):
+        # Mirrors what the real start() does before it could fail: bind a
+        # real socket and spawn the serving thread, then blow up before the
+        # handshake is written.
+        self._server = server_module.SimpleXMLRPCServer(
+            ("127.0.0.1", 0), allow_none=True, logRequests=False
+        )
+        self._thread = threading.Thread(
+            target=self._server.serve_forever, name="nvda_testkit_spy", daemon=True
+        )
+        self._thread.start()
+        raise RuntimeError("handshake write failed")
+
+    monkeypatch.setattr(server_module.SpyServer, "start", fake_start)
+    monkeypatch.setattr(server_module.SpyServer, "stop", tracking_stop)
+    monkeypatch.setenv("NVDA_TESTKIT_TOKEN", "tok")
+    monkeypatch.setenv("NVDA_TESTKIT_OUTDIR", str(tmp_path))
+
+    plugin = nvda_testkit_spy.GlobalPlugin()  # must not propagate fake_start's exception
+
+    assert plugin._server is None
+    assert len(stopped) == 1

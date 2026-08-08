@@ -46,3 +46,20 @@ def test_a_never_drained_queue_times_out(event_queue):
     event_queue.auto_drain = False
     with pytest.raises(TimeoutError, match="main thread"):
         run_on_main_thread(lambda: None, timeout=0.2)
+
+
+def test_a_failure_after_the_caller_timed_out_is_logged(event_queue):
+    import logHandler
+    from nvda_testkit_spy.mainthread import run_on_main_thread
+
+    logHandler.log.reset_mock()
+    event_queue.auto_drain = False
+
+    def explode():
+        raise KeyError("too late")
+
+    with pytest.raises(TimeoutError, match="main thread"):
+        run_on_main_thread(explode, timeout=0.2)
+
+    event_queue.drain()
+    logHandler.log.exception.assert_called_once()

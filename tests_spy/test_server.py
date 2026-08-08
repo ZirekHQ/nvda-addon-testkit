@@ -52,3 +52,37 @@ def test_the_handshake_is_never_visible_half_written(tmp_path, event_queue):
         json.loads((tmp_path / HANDSHAKE_FILENAME).read_text())
     finally:
         server.stop()
+
+
+def test_a_wrong_token_faults_over_the_wire_with_the_auth_prefix(tmp_path, event_queue):
+    from nvda_testkit_spy.server import SpyServer
+
+    server = SpyServer("tok", tmp_path)
+    port = server.start()
+    try:
+        proxy = xmlrpc.client.ServerProxy(f"http://127.0.0.1:{port}", allow_none=True)
+        try:
+            proxy.ping("wrong")
+        except xmlrpc.client.Fault as fault:
+            assert "AUTH:" in fault.faultString
+        else:
+            raise AssertionError("expected a Fault for a wrong token")
+    finally:
+        server.stop()
+
+
+def test_an_unknown_method_faults_over_the_wire_with_the_unknown_prefix(tmp_path, event_queue):
+    from nvda_testkit_spy.server import SpyServer
+
+    server = SpyServer("tok", tmp_path)
+    port = server.start()
+    try:
+        proxy = xmlrpc.client.ServerProxy(f"http://127.0.0.1:{port}", allow_none=True)
+        try:
+            proxy.nope("tok")
+        except xmlrpc.client.Fault as fault:
+            assert "UNKNOWN:" in fault.faultString
+        else:
+            raise AssertionError("expected a Fault for an unknown method")
+    finally:
+        server.stop()

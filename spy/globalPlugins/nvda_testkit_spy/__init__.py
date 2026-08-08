@@ -6,6 +6,7 @@ Does nothing at all unless NVDA_TESTKIT_TOKEN and NVDA_TESTKIT_OUTDIR are both
 set, so an accidental install in a real NVDA is inert.
 """
 
+import contextlib
 import os
 
 import globalPluginHandler
@@ -33,6 +34,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             # handshake with a clear message; a raising GlobalPlugin
             # constructor takes NVDA's whole add-on load down with it.
             log.exception("nvda-testkit spy failed to start")
+            # start() may have already bound a socket and spawned its thread
+            # before failing. Dropping the reference without stopping it leaks
+            # both for the life of the NVDA process.
+            if self._server is not None:
+                with contextlib.suppress(Exception):
+                    self._server.stop()
             self._server = None
 
     def terminate(self):
