@@ -148,6 +148,26 @@ def test_xdist_with_a_single_worker_is_allowed(harness):
 
 
 def test_a_test_that_does_not_ask_for_nvda_never_starts_it(harness):
+    # Patched on `plugin`, not `provisioning`: plugin.py imports the name
+    # directly (`from .provisioning import ... provision_fake`), so it is
+    # bound in plugin's own module globals by the time this conftest runs.
+    # Patching `provisioning.provision_fake` would leave that binding alone
+    # and the spy would never be called.
+    harness.makeconftest(
+        """
+        import pathlib
+        from nvda_testkit import plugin
+
+        _MARKER = pathlib.Path(__file__).parent / "provisioned.marker"
+        _real = plugin.provision_fake
+
+        def _spy(*args, **kwargs):
+            _MARKER.write_text("started")
+            return _real(*args, **kwargs)
+
+        plugin.provision_fake = _spy
+        """
+    )
     harness.makepyfile(
         """
         def test_pure_logic():
@@ -156,4 +176,5 @@ def test_a_test_that_does_not_ask_for_nvda_never_starts_it(harness):
     )
     result = harness.runpytest("-v")
     result.assert_outcomes(passed=1)
-    assert "testkit-handshake.json" not in result.stdout.str()
+    marker = harness.path / "provisioned.marker"
+    assert not marker.exists(), "nvda_reset must stay lazy: NVDA must never be provisioned"

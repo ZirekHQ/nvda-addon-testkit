@@ -226,15 +226,21 @@ def main() -> int:
         delay = float(script.get("handshake_delay", 0.0))
         if delay:
             time.sleep(delay)
-        # The handshake file uses "nvdaVersion"; the nvda_version RPC returns
-        # "version". Deliberate -- the real spy maps between them the same way.
-        payload = {
-            "port": port,
-            "pid": os.getpid(),
-            "nvdaVersion": script.get("nvda_version", "2026.1.1"),
-            "apiVersion": script.get("api_version", "2026.1.1"),
-            "apiCompatTo": script.get("api_compat_to", "2026.1.0"),
-        }
+        if script.get("bad_handshake"):
+            # Missing "pid": valid JSON, but Handshake.from_payload raises
+            # KeyError on it. Exercises the "malformed payload" leak path.
+            payload = {"port": port}
+        else:
+            # The handshake file uses "nvdaVersion"; the nvda_version RPC
+            # returns "version". Deliberate -- the real spy maps between
+            # them the same way.
+            payload = {
+                "port": port,
+                "pid": os.getpid(),
+                "nvdaVersion": script.get("nvda_version", "2026.1.1"),
+                "apiVersion": script.get("api_version", "2026.1.1"),
+                "apiCompatTo": script.get("api_compat_to", "2026.1.0"),
+            }
         # Write-then-rename, so a poller never reads a half-written file.
         directory = Path(out_dir)
         directory.mkdir(parents=True, exist_ok=True)

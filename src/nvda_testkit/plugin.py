@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import contextlib
+import warnings
 from pathlib import Path
 
 import pytest
@@ -96,8 +96,16 @@ def nvda_reset(request: pytest.FixtureRequest):
     if "nvda_session" not in request.fixturenames:
         return
     client = request.getfixturevalue("nvda_session")
-    with contextlib.suppress(Exception):  # a dead NVDA is the next test's problem to report
+    try:
         client.reset()
+    except Exception as error:
+        # Non-fatal here -- the next test's `nvda` fixture calls reset() again
+        # and will surface a persistent failure -- but never silent: if this
+        # is the last test in the session, a warning is the only channel left.
+        warnings.warn(
+            f"nvda-testkit: reset() failed during teardown: {error}",
+            stacklevel=2,
+        )
 
 
 @pytest.fixture(scope="session")

@@ -58,8 +58,14 @@ def provision_fake(settings: TestkitSettings, fake_script: Path) -> Provisioned:
         quit_via="rpc",
         timeout_scale=settings.timeout_scale,
     )
-    handshake = process.start(timeout=60)
-    rpc = RpcClient.from_handshake(handshake, token=token, timeout_scale=settings.timeout_scale)
+    try:
+        handshake = process.start(timeout=60)
+        rpc = RpcClient.from_handshake(handshake, token=token, timeout_scale=settings.timeout_scale)
+    except Exception:
+        # Any failure past this point -- not just the timeout process.start()
+        # already guards -- must not leave the subprocess running.
+        process.kill()
+        raise
     return Provisioned(process, rpc, workdir, keep=settings.keep_portable)
 
 
@@ -89,6 +95,10 @@ def provision(settings: TestkitSettings) -> Provisioned:
         quit_via="exe",
         timeout_scale=settings.timeout_scale,
     )
-    handshake = process.start(timeout=120)
-    rpc = RpcClient.from_handshake(handshake, token=token, timeout_scale=settings.timeout_scale)
+    try:
+        handshake = process.start(timeout=120)
+        rpc = RpcClient.from_handshake(handshake, token=token, timeout_scale=settings.timeout_scale)
+    except Exception:
+        process.kill()
+        raise
     return Provisioned(process, rpc, workdir, keep=settings.keep_portable)
