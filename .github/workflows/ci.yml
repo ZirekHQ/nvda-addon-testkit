@@ -37,4 +37,5 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install -e ".[dev]"
+      - run: python tools/build_spy.py
       - run: pytest tests/ -v

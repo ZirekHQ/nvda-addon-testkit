@@ -35,7 +35,7 @@ packages = ["src/nvda_testkit"]
 artifacts = ["src/nvda_testkit/_spy/*.nvda-addon"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "tests_spy"]
 addopts = "-ra"
 markers = [
     "windows_only: requires a real Windows host",
