@@ -41,3 +41,34 @@ jobs:
       # Bare `pytest` so testpaths picks up tests_spy/ too. An explicit
       # `pytest tests/` silently skips every spy test in CI.
       - run: pytest -v
+
+  e2e:
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [stable, alpha]
+    continue-on-error: ${{ matrix.channel == 'alpha' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pip install -e ".[dev]"
+      - run: python tools/build_spy.py
+      - name: Cache NVDA launchers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/nvda-testkit
+          key: nvda-launcher-${{ matrix.channel }}-${{ github.run_id }}
+          restore-keys: nvda-launcher-${{ matrix.channel }}-
+      - run: nvda-testkit doctor
+      - run: pytest tests_e2e/ -v --nvda-channel=${{ matrix.channel }}
+      - if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-${{ matrix.channel }}-artifacts
+          path: testOutput/
+          if-no-files-found: warn
