@@ -31,6 +31,8 @@ class FakeSpy:
         self._speech: list[dict] = []
         for canned in script.get("speech", []):
             self._speech.append({"items": canned, "timestamp": 0.0})
+        self._braille: list[dict] = []
+        self._cells = 40
         self.stop_requested = threading.Event()
 
     def _dispatch(self, method: str, params: tuple):
@@ -90,6 +92,31 @@ class FakeSpy:
 
     def rpc_speech_cancel(self):
         return True
+
+    def rpc_braille_index(self):
+        with self._lock:
+            return len(self._braille)
+
+    def rpc_braille_since(self, index):
+        with self._lock:
+            return self._braille[index:]
+
+    def rpc_braille_clear(self):
+        with self._lock:
+            self._braille.clear()
+        return True
+
+    def rpc_braille_emit(self, text):
+        with self._lock:
+            self._braille.append({"text": text, "timestamp": time.time()})
+        return len(self._braille)
+
+    def rpc_braille_set_cell_count(self, count):
+        self._cells = int(count)
+        return True
+
+    def rpc_braille_cell_count(self):
+        return self._cells
 
     def rpc_quit(self):
         if not self._script.get("ignore_quit"):

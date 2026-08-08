@@ -153,6 +153,27 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     speech.speak = MagicMock()
     speech.cancelSpeech = MagicMock()
 
+    braille_extensions = types.ModuleType("braille.extensions")
+    braille_extensions.pre_writeCells = FakeAction()
+    braille_extensions.filter_displayDimensions = FakeFilter()
+
+    braille_display = types.ModuleType("braille.display")
+
+    class DisplayDimensions:
+        def __init__(self, numRows, numCols):
+            self.numRows = numRows
+            self.numCols = numCols
+
+        def __eq__(self, other):
+            return (self.numRows, self.numCols) == (other.numRows, other.numCols)
+
+    braille_display.DisplayDimensions = DisplayDimensions
+
+    braille = types.ModuleType("braille")
+    braille.extensions = braille_extensions
+    braille.display = braille_display
+    braille.handler = MagicMock()
+
     modules = {
         "queueHandler": queue_handler,
         "logHandler": log_handler,
@@ -165,6 +186,9 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
         "speech": speech,
         "speech.extensions": speech_extensions,
         "speech.commands": speech_commands,
+        "braille": braille,
+        "braille.extensions": braille_extensions,
+        "braille.display": braille_display,
     }
     sys.modules.update(modules)
     modules["_eventQueue"] = queue

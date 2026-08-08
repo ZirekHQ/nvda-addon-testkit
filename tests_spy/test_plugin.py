@@ -103,3 +103,95 @@ def test_a_partial_start_failure_also_removes_the_speech_tap(monkeypatch, tmp_pa
 
     assert plugin._server is None
     assert calls == [True], "a failed start must uninstall the speech tap, not just the server"
+
+
+def test_a_partial_start_failure_also_removes_the_braille_tap(monkeypatch, tmp_path, event_queue):
+    import nvda_testkit_spy
+    from nvda_testkit_spy import braille_tap as braille_tap_module
+    from nvda_testkit_spy import server as server_module
+
+    calls = []
+    real_uninstall = braille_tap_module.uninstall
+
+    def tracking_uninstall():
+        calls.append(True)
+        real_uninstall()
+
+    def fake_start(self):
+        raise RuntimeError("handshake write failed")
+
+    monkeypatch.setattr(server_module.SpyServer, "start", fake_start)
+    monkeypatch.setattr(braille_tap_module, "uninstall", tracking_uninstall)
+    monkeypatch.setenv("NVDA_TESTKIT_TOKEN", "tok")
+    monkeypatch.setenv("NVDA_TESTKIT_OUTDIR", str(tmp_path))
+
+    plugin = nvda_testkit_spy.GlobalPlugin()  # must not propagate fake_start's exception
+
+    assert plugin._server is None
+    assert calls == [True], "a failed start must uninstall the braille tap, not just the server"
+
+
+def test_a_partial_start_failure_removes_the_other_tap_even_if_one_uninstall_raises(
+    monkeypatch, tmp_path, event_queue
+):
+    import nvda_testkit_spy
+    from nvda_testkit_spy import braille_tap as braille_tap_module
+    from nvda_testkit_spy import server as server_module
+    from nvda_testkit_spy import speech_tap as speech_tap_module
+
+    calls = []
+    real_braille_uninstall = braille_tap_module.uninstall
+
+    def failing_speech_uninstall():
+        calls.append("speech")
+        raise RuntimeError("speech tap refused to uninstall")
+
+    def tracking_braille_uninstall():
+        calls.append("braille")
+        real_braille_uninstall()
+
+    def fake_start(self):
+        raise RuntimeError("handshake write failed")
+
+    monkeypatch.setattr(server_module.SpyServer, "start", fake_start)
+    monkeypatch.setattr(speech_tap_module, "uninstall", failing_speech_uninstall)
+    monkeypatch.setattr(braille_tap_module, "uninstall", tracking_braille_uninstall)
+    monkeypatch.setenv("NVDA_TESTKIT_TOKEN", "tok")
+    monkeypatch.setenv("NVDA_TESTKIT_OUTDIR", str(tmp_path))
+
+    plugin = nvda_testkit_spy.GlobalPlugin()  # must not propagate either uninstall's exception
+
+    assert plugin._server is None
+    assert calls == ["speech", "braille"], (
+        "the speech tap's uninstall failing must not skip the braille tap's"
+    )
+
+
+def test_terminate_removes_the_other_tap_even_if_one_uninstall_raises(
+    monkeypatch, tmp_path, event_queue
+):
+    import nvda_testkit_spy
+    from nvda_testkit_spy import braille_tap as braille_tap_module
+    from nvda_testkit_spy import speech_tap as speech_tap_module
+
+    calls = []
+    real_braille_uninstall = braille_tap_module.uninstall
+
+    def failing_speech_uninstall():
+        calls.append("speech")
+        raise RuntimeError("speech tap refused to uninstall")
+
+    def tracking_braille_uninstall():
+        calls.append("braille")
+        real_braille_uninstall()
+
+    monkeypatch.setenv("NVDA_TESTKIT_TOKEN", "tok")
+    monkeypatch.setenv("NVDA_TESTKIT_OUTDIR", str(tmp_path))
+
+    plugin = nvda_testkit_spy.GlobalPlugin()
+    monkeypatch.setattr(speech_tap_module, "uninstall", failing_speech_uninstall)
+    monkeypatch.setattr(braille_tap_module, "uninstall", tracking_braille_uninstall)
+
+    plugin.terminate()  # must not raise, and must not skip the braille tap
+
+    assert calls == ["speech", "braille"]

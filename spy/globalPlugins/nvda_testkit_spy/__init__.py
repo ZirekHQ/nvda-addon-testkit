@@ -12,7 +12,7 @@ import os
 import globalPluginHandler
 from logHandler import log
 
-from . import speech_tap
+from . import braille_tap, speech_tap
 from .server import SpyServer
 
 
@@ -29,6 +29,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
         try:
             speech_tap.install()
+            braille_tap.install()
             self._server = SpyServer(token, out_dir)
             self._server.start()
         except Exception:
@@ -44,16 +45,22 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                     self._server.stop()
             self._server = None
             # install() may have succeeded before SpyServer failed. Left
-            # registered, the tap keeps capturing into _SEQUENCES forever with
-            # no RPC server alive to ever call speech_clear().
+            # registered, a tap keeps capturing forever with no RPC server
+            # alive to ever call its clear().
             with contextlib.suppress(Exception):
                 speech_tap.uninstall()
+            with contextlib.suppress(Exception):
+                braille_tap.uninstall()
 
     def terminate(self):
         try:
             speech_tap.uninstall()
         except Exception:
             log.exception("nvda-testkit spy failed to remove its speech tap")
+        try:
+            braille_tap.uninstall()
+        except Exception:
+            log.exception("nvda-testkit spy failed to remove its braille tap")
         if self._server is not None:
             self._server.stop()
             self._server = None
