@@ -8,6 +8,7 @@ crashes on startup must fail in seconds, not at the handshake deadline.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import secrets
@@ -163,14 +164,18 @@ class NvdaProcess:
             proxy = xmlrpc.client.ServerProxy(
                 f"http://127.0.0.1:{self._handshake.port}", allow_none=True
             )
-            try:
+            with contextlib.suppress(Exception):  # any failure here just falls through to kill
                 proxy.quit(self.token)
-            except OSError:
-                pass
-            except Exception:  # a fault here just means fall through to kill
-                pass
             return
-        subprocess.run([self.argv[0], "--quit"], capture_output=True, check=False, timeout=30)
+        # Both branches must fall through to kill(). A --quit that itself
+        # hangs is exactly the case that guarantee exists for.
+        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+            subprocess.run(
+                [self.argv[0], "--quit"],
+                capture_output=True,
+                check=False,
+                timeout=30 * self.timeout_scale,
+            )
 
     def quit(self, timeout: float = 30) -> None:
         if self._proc is None:

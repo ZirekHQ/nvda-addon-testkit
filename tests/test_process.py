@@ -80,10 +80,17 @@ def test_dying_early_does_not_wait_out_the_whole_timeout(process, fake_nvda):
 
 
 def test_quit_stops_the_process(process):
+    import time
+
     proc = process()
     proc.start(timeout=20)
+    started = time.monotonic()
     proc.quit(timeout=20)
+    elapsed = time.monotonic() - started
     assert not proc.is_running
+    # Bounded so a silently broken RPC quit cannot pass by falling through to
+    # the 20s deadline and killing instead. Cooperative quit takes well under 1s.
+    assert elapsed < 10, f"quit took {elapsed:.1f}s, so it likely fell back to kill()"
 
 
 def test_quit_falls_back_to_kill_when_ignored(process, fake_nvda):
