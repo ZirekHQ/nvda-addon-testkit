@@ -49,7 +49,7 @@ class LauncherInfo:
 
 def fetch_url(url: str) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
-    with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310
+    with urllib.request.urlopen(request, timeout=60) as response:
         return response.read()
 
 
