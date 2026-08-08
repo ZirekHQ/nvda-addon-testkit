@@ -12,8 +12,11 @@ def test_nvda_reaches_idle(nvda):
 
 
 def test_nvda_speaks_when_asked(nvda):
+    # speak() is synchronous, so the speech is already recorded by the time
+    # wait_for() would otherwise start looking. Capture the index first.
+    before = nvda.speech.index()
     nvda.speech.speak("the quick brown fox")
-    found = nvda.speech.wait_for("quick brown fox", timeout=20)
+    found = nvda.speech.wait_for("quick brown fox", timeout=20, since=before)
     assert "quick brown fox" in found.text
 
 

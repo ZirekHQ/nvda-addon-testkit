@@ -9,8 +9,9 @@ pytest drive it.
 
 ```python
 def test_my_addon_announces_itself(nvda, addon_under_test):
+    before = nvda.speech.index()
     nvda.keys.press("NVDA+shift+m")
-    assert "my add-on is ready" in nvda.speech.wait_for("ready", timeout=10).text
+    assert "my add-on is ready" in nvda.speech.wait_for("ready", timeout=10, since=before).text
     nvda.log.assert_no_errors()
 ```
 

@@ -47,6 +47,10 @@ class SpeechNamespace:
 
         By default only speech produced after this call counts. Pass since=0 to
         search everything captured so far.
+
+        Snapshots index() when called, so it cannot see speech already
+        emitted. After a synchronous action such as press() or speak(),
+        capture index() before the action and pass it as since.
         """
         start = self.index() if since is None else since
 
