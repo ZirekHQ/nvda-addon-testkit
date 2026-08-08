@@ -142,27 +142,31 @@ class FakeSpy:
             return list(self._gestures)
 
     def rpc_config_get(self, path):
-        node = self._config
-        for key in path:
-            node = node[key]
-        return node
+        with self._lock:
+            node = self._config
+            for key in path:
+                node = node[key]
+            return node
 
     def rpc_config_set(self, path, value):
-        node = self._config
-        for key in path[:-1]:
-            node = node.setdefault(key, {})
-        node[path[-1]] = value
+        with self._lock:
+            node = self._config
+            for key in path[:-1]:
+                node = node.setdefault(key, {})
+            node[path[-1]] = value
         return True
 
     def rpc_config_snapshot(self):
         import copy as _copy
 
-        return _copy.deepcopy(self._config)
+        with self._lock:
+            return _copy.deepcopy(self._config)
 
     def rpc_config_restore(self, snapshot):
         import copy as _copy
 
-        self._config = _copy.deepcopy(snapshot)
+        with self._lock:
+            self._config = _copy.deepcopy(snapshot)
         return True
 
     def rpc_log_index(self):

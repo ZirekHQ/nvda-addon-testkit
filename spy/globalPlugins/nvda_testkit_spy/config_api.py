@@ -67,7 +67,13 @@ def _restore(snapshot):
     import config
 
     config.conf.clear()
-    config.conf.update(copy.deepcopy(snapshot))
+    # Assign key by key rather than update(): config.conf is a ConfigObj whose
+    # __setitem__ rebuilds nested dicts into Section objects. update() can write
+    # plain dicts straight in, leaving NVDA with a structurally different config
+    # than it started with. This runs between every test, so a degraded
+    # structure would poison the whole session.
+    for key, value in copy.deepcopy(snapshot).items():
+        config.conf[key] = value
 
 
 @rpc_method

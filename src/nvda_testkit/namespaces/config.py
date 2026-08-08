@@ -6,8 +6,6 @@ from typing import Any
 
 from ..rpcclient import RpcClient
 
-Path = "str | tuple[str, ...] | list[str]"
-
 
 def _as_list(path) -> list[str]:
     if isinstance(path, str):
