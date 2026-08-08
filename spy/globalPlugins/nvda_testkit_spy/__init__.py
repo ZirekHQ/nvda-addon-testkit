@@ -13,6 +13,7 @@ import globalPluginHandler
 from logHandler import log
 
 from . import braille_tap, speech_tap
+from . import input_api as input_api  # re-export: the import alone registers its rpc_method's
 from .server import SpyServer
 
 

@@ -33,6 +33,7 @@ class FakeSpy:
             self._speech.append({"items": canned, "timestamp": 0.0})
         self._braille: list[dict] = []
         self._cells = 40
+        self._gestures: list[dict] = []
         self.stop_requested = threading.Event()
 
     def _dispatch(self, method: str, params: tuple):
@@ -117,6 +118,23 @@ class FakeSpy:
 
     def rpc_braille_cell_count(self):
         return self._cells
+
+    def rpc_keys_press(self, gesture, timeout=10.0):
+        if "notakey" in gesture:
+            raise ValueError(f"{gesture!r} is not a gesture NVDA recognises")
+        with self._lock:
+            self._gestures.append({"gesture": gesture, "timestamp": time.time()})
+        return True
+
+    def rpc_keys_type(self, text, timeout=30.0):
+        named = {" ": "space", "\t": "tab", "\n": "enter"}
+        for character in text:
+            self.rpc_keys_press(named.get(character, character))
+        return True
+
+    def rpc_keys_sent(self):
+        with self._lock:
+            return list(self._gestures)
 
     def rpc_quit(self):
         if not self._script.get("ignore_quit"):

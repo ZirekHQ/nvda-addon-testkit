@@ -11,6 +11,7 @@ from __future__ import annotations
 import sys
 import threading
 import types
+from typing import ClassVar
 from unittest.mock import MagicMock
 
 
@@ -174,6 +175,29 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     braille.display = braille_display
     braille.handler = MagicMock()
 
+    keyboard_handler = types.ModuleType("keyboardHandler")
+
+    class KeyboardInputGesture:
+        created: ClassVar[list] = []
+
+        def __init__(self, name):
+            self.name = name
+
+        @classmethod
+        def fromName(cls, name):
+            gesture = cls(name)
+            cls.created.append(name)
+            return gesture
+
+        def __repr__(self):
+            return f"KeyboardInputGesture({self.name!r})"
+
+    keyboard_handler.KeyboardInputGesture = KeyboardInputGesture
+
+    input_core = types.ModuleType("inputCore")
+    input_core.manager = MagicMock()
+    input_core.NoInputGestureAction = type("NoInputGestureAction", (Exception,), {})
+
     modules = {
         "queueHandler": queue_handler,
         "logHandler": log_handler,
@@ -189,6 +213,8 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
         "braille": braille,
         "braille.extensions": braille_extensions,
         "braille.display": braille_display,
+        "keyboardHandler": keyboard_handler,
+        "inputCore": input_core,
     }
     sys.modules.update(modules)
     modules["_eventQueue"] = queue
