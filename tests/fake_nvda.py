@@ -195,6 +195,11 @@ class FakeSpy:
     def rpc_eval_in_nvda(self, source):
         return eval(source, {"__builtins__": {}}, {})  # test double only
 
+    def rpc_addons_install(self, bundle_path):
+        self._installed = getattr(self, "_installed", [])
+        self._installed.append(bundle_path)
+        return {"name": "fake-addon", "state": "PENDING_INSTALL"}
+
 
 def main() -> int:
     token = os.environ.get("NVDA_TESTKIT_TOKEN")
