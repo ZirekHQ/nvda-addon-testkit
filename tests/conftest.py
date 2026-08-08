@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 import secrets
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -44,8 +43,11 @@ class FakeNvdaHandle:
 
 @pytest.fixture
 def fake_nvda(tmp_path):
+    """Config for a FakeNvda; it does not start one.
+
+    Whoever launches the process owns killing it -- NvdaProcess from Task 6
+    onward, or the `spawned` fixture in test_fake_nvda.py.
+    """
     handle = FakeNvdaHandle(out_dir=tmp_path / "out", token=secrets.token_hex(16))
     handle.out_dir.mkdir(parents=True, exist_ok=True)
-    yield handle
-    # Sweep up anything a failing test left running.
-    subprocess.run([sys.executable, "-c", "pass"], check=False, capture_output=True)
+    return handle
