@@ -34,6 +34,11 @@ class FakeSpy:
         self._braille: list[dict] = []
         self._cells = 40
         self._gestures: list[dict] = []
+        self._config = {
+            "speech": {"synth": "espeak", "espeak": {"rate": 50}},
+            "braille": {"display": "noBraille"},
+        }
+        self._log: list[dict] = []
         self.stop_requested = threading.Event()
 
     def _dispatch(self, method: str, params: tuple):
@@ -135,6 +140,48 @@ class FakeSpy:
     def rpc_keys_sent(self):
         with self._lock:
             return list(self._gestures)
+
+    def rpc_config_get(self, path):
+        node = self._config
+        for key in path:
+            node = node[key]
+        return node
+
+    def rpc_config_set(self, path, value):
+        node = self._config
+        for key in path[:-1]:
+            node = node.setdefault(key, {})
+        node[path[-1]] = value
+        return True
+
+    def rpc_config_snapshot(self):
+        import copy as _copy
+
+        return _copy.deepcopy(self._config)
+
+    def rpc_config_restore(self, snapshot):
+        import copy as _copy
+
+        self._config = _copy.deepcopy(snapshot)
+        return True
+
+    def rpc_log_index(self):
+        with self._lock:
+            return len(self._log)
+
+    def rpc_log_since(self, index):
+        with self._lock:
+            return self._log[index:]
+
+    def rpc_log_clear(self):
+        with self._lock:
+            self._log.clear()
+        return True
+
+    def rpc_log_emit(self, level, message):
+        with self._lock:
+            self._log.append({"level": level, "message": message, "timestamp": time.time()})
+        return len(self._log)
 
     def rpc_quit(self):
         if not self._script.get("ignore_quit"):

@@ -8,6 +8,7 @@ rather than on internals.
 
 from __future__ import annotations
 
+import logging
 import sys
 import threading
 import types
@@ -83,7 +84,26 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     queue_handler.pumpAll = queue.drain
 
     log_handler = types.ModuleType("logHandler")
-    log_handler.log = MagicMock()
+    # A real Logger, not a bare MagicMock: log_tap attaches a logging.Handler
+    # to it and needs records to actually flow. Each level method is then
+    # mock-wrapped in place so existing tests can still assert call counts
+    # and call args, same as they could against the old MagicMock.
+    stub_logger = logging.getLogger("nvda_testkit_stub")
+    stub_logger.setLevel(logging.DEBUG)
+    stub_logger.propagate = False
+    level_mocks = {
+        level_name: MagicMock(wraps=getattr(stub_logger, level_name))
+        for level_name in ("debug", "info", "warning", "error", "exception", "critical")
+    }
+    for level_name, mock in level_mocks.items():
+        setattr(stub_logger, level_name, mock)
+    # A real Logger has no reset_mock of its own; cascade to the level mocks
+    # so callers can still reset the whole thing in one call, as they could
+    # against the old bare MagicMock.
+    stub_logger.reset_mock = lambda *a, **kw: [
+        mock.reset_mock(*a, **kw) for mock in level_mocks.values()
+    ]
+    log_handler.log = stub_logger
 
     global_plugin_handler = types.ModuleType("globalPluginHandler")
 
@@ -116,6 +136,13 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     extension_points = types.ModuleType("extensionPoints")
     extension_points.Action = FakeAction
     extension_points.Filter = FakeFilter
+
+    config_module = types.ModuleType("config")
+    config_module.conf = {
+        "speech": {"synth": "espeak", "espeak": {"rate": 50}},
+        "braille": {"display": "noBraille"},
+    }
+    config_module.post_configProfileSwitch = FakeAction()
 
     speech_extensions = types.ModuleType("speech.extensions")
     speech_extensions.pre_speech = FakeAction()
@@ -207,6 +234,7 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
         "addonAPIVersion": addon_api_version,
         "core": core,
         "extensionPoints": extension_points,
+        "config": config_module,
         "speech": speech,
         "speech.extensions": speech_extensions,
         "speech.commands": speech_commands,

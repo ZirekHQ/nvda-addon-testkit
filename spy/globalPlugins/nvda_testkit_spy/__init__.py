@@ -12,7 +12,8 @@ import os
 import globalPluginHandler
 from logHandler import log
 
-from . import braille_tap, speech_tap
+from . import braille_tap, log_tap, speech_tap
+from . import config_api as config_api  # re-export: the import alone registers its rpc_method's
 from . import input_api as input_api  # re-export: the import alone registers its rpc_method's
 from .server import SpyServer
 
@@ -29,6 +30,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             return
 
         try:
+            log_tap.install()
             speech_tap.install()
             braille_tap.install()
             self._server = SpyServer(token, out_dir)
@@ -49,11 +51,17 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             # registered, a tap keeps capturing forever with no RPC server
             # alive to ever call its clear().
             with contextlib.suppress(Exception):
+                log_tap.uninstall()
+            with contextlib.suppress(Exception):
                 speech_tap.uninstall()
             with contextlib.suppress(Exception):
                 braille_tap.uninstall()
 
     def terminate(self):
+        try:
+            log_tap.uninstall()
+        except Exception:
+            log.exception("nvda-testkit spy failed to remove its log tap")
         try:
             speech_tap.uninstall()
         except Exception:
