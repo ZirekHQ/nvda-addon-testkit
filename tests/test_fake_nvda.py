@@ -1,3 +1,4 @@
+import contextlib
 import json
 import subprocess
 import sys
@@ -47,8 +48,10 @@ def spawned(tmp_path):
 
     yield spawn
     for proc in processes:
-        proc.kill()
-        proc.wait(timeout=10)
+        # Isolated per process: one hung wait() must not strand the rest.
+        with contextlib.suppress(Exception):
+            proc.kill()
+            proc.wait(timeout=10)
 
 
 def test_writes_a_handshake_with_a_reachable_port(spawned, tmp_path):
@@ -107,3 +110,42 @@ def test_quit_shuts_the_process_down(spawned, tmp_path):
     proxy = xmlrpc.client.ServerProxy(f"http://127.0.0.1:{handshake['port']}", allow_none=True)
     proxy.quit("tok")
     assert proc.wait(timeout=15) == 0
+
+
+def test_ignore_quit_knob_keeps_the_process_alive(spawned, tmp_path):
+    proc = spawned(script={"ignore_quit": True})
+    handshake = _await_handshake(tmp_path)
+    proxy = xmlrpc.client.ServerProxy(f"http://127.0.0.1:{handshake['port']}", allow_none=True)
+    assert proxy.quit("tok") is True
+    with pytest.raises(subprocess.TimeoutExpired):
+        proc.wait(timeout=0.5)
+
+
+def test_echo_round_trips_a_nontrivial_structure(spawned, tmp_path):
+    spawned()
+    handshake = _await_handshake(tmp_path)
+    proxy = xmlrpc.client.ServerProxy(f"http://127.0.0.1:{handshake['port']}", allow_none=True)
+    payload = {"a": [1, 2], "b": None}
+    assert proxy.echo("tok", payload) == payload
+
+
+def test_version_override_knobs_affect_handshake_and_rpc(spawned, tmp_path):
+    spawned(
+        script={
+            "nvda_version": "2099.1",
+            "api_version": "2099.1",
+            "api_compat_to": "2098.1",
+        }
+    )
+    handshake = _await_handshake(tmp_path)
+    assert handshake["nvdaVersion"] == "2099.1"
+    assert handshake["apiVersion"] == "2099.1"
+    assert handshake["apiCompatTo"] == "2098.1"
+
+    proxy = xmlrpc.client.ServerProxy(f"http://127.0.0.1:{handshake['port']}", allow_none=True)
+    version = proxy.nvda_version("tok")
+    # The handshake file uses "nvdaVersion"; the nvda_version RPC returns
+    # "version". Deliberate -- the real spy maps between them the same way.
+    assert version["version"] == "2099.1"
+    assert version["apiVersion"] == "2099.1"
+    assert version["apiCompatTo"] == "2098.1"

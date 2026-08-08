@@ -34,6 +34,11 @@ class FakeSpy:
         self.stop_requested = threading.Event()
 
     def _dispatch(self, method: str, params: tuple):
+        # Method lookup before auth, matching the real spy's registry.Dispatcher.
+        # The token guards against a stale NVDA from a previous run answering,
+        # not against a local attacker, so leaking which methods exist over a
+        # loopback port costs nothing. Both sides must agree -- do not reorder
+        # one without the other.
         handler = getattr(self, f"rpc_{method}", None)
         if handler is None:
             raise Exception(f"UNKNOWN: no such method {method!r}")
@@ -103,6 +108,8 @@ def main() -> int:
         delay = float(script.get("handshake_delay", 0.0))
         if delay:
             time.sleep(delay)
+        # The handshake file uses "nvdaVersion"; the nvda_version RPC returns
+        # "version". Deliberate -- the real spy maps between them the same way.
         payload = {
             "port": port,
             "pid": os.getpid(),
