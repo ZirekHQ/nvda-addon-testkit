@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nvda-addon-testkit"
+version = "0.1.0.dev0"
+description = "End-to-end testing for NVDA add-ons against a real NVDA"
+readme = "README.md"
+license = "GPL-2.0-or-later"
+requires-python = ">=3.11"
+authors = [{ name = "Zirek" }]
+keywords = ["nvda", "accessibility", "screen-reader", "testing", "pytest"]
+classifiers = [
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = ["pytest>=8.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://github.com/ZirekHQ/nvda-addon-testkit"
+Issues = "https://github.com/ZirekHQ/nvda-addon-testkit/issues"
+
+[project.scripts]
+nvda-testkit = "nvda_testkit.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nvda_testkit"]
+artifacts = ["src/nvda_testkit/_spy/*.nvda-addon"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "windows_only: requires a real Windows host",
+    "fresh_nvda: restart NVDA before this test",
+]

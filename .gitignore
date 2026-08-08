@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+dist/
+build/
+*.egg-info/
+testOutput/
+src/nvda_testkit/_spy/*.nvda-addon
+.pytest_cache/
+.ruff_cache/
