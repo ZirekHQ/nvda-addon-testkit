@@ -35,5 +35,8 @@ def test_config_round_trips_through_a_real_nvda(nvda):
     assert "speech" in snapshot
 
 
-def test_startup_produced_no_errors(nvda):
-    nvda.log.assert_no_errors()
+def test_startup_produced_no_errors(nvda, assert_no_unexpected_errors):
+    # The nvda fixture's reset() clears the log before this body runs, so without
+    # a restart here there would be no startup left to assert anything about.
+    nvda.restart()
+    assert_no_unexpected_errors(nvda)

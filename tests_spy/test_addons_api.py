@@ -7,6 +7,7 @@ def api(event_queue):
     from nvda_testkit_spy import addons_api
 
     addonHandler.INSTALLED.clear()
+    addonHandler.NEXT_INSTALL_OUTCOME = "ok"
     return addons_api
 
 
@@ -61,3 +62,28 @@ def test_remove_marks_pending_remove(api):
 def test_removing_something_absent_is_an_error_not_a_silent_no_op(api):
     with pytest.raises(LookupError, match="not installed"):
         api.addons_remove("never-existed")
+
+
+def test_a_bundle_that_will_not_extract_reports_why(api):
+    import addonHandler
+
+    addonHandler.NEXT_INSTALL_OUTCOME = "extract-failure"
+    with pytest.raises(RuntimeError, match="could not extract"):
+        api.addons_install("/tmp/corrupt.nvda-addon")
+
+
+def test_a_failing_on_install_task_is_not_reported_as_success(api):
+    import addonHandler
+
+    addonHandler.NEXT_INSTALL_OUTCOME = "install-task-failure"
+    with pytest.raises(RuntimeError, match="onInstall failed"):
+        api.addons_install("/tmp/demo.nvda-addon")
+    assert api.addons_state("demo-addon") == "NOT_INSTALLED"
+
+
+def test_a_failed_install_names_the_underlying_exception(api):
+    import addonHandler
+
+    addonHandler.NEXT_INSTALL_OUTCOME = "install-task-failure"
+    with pytest.raises(RuntimeError, match="RuntimeError: onInstall exploded"):
+        api.addons_install("/tmp/demo.nvda-addon")

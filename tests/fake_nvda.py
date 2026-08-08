@@ -11,10 +11,13 @@ package under test cannot make the double lie.
 
 from __future__ import annotations
 
+import builtins
 import hmac
 import json
 import os
+import shutil
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -22,6 +25,18 @@ from xmlrpc.server import SimpleXMLRPCServer
 
 HANDSHAKE_FILENAME = "testkit-handshake.json"
 ADDONS_STATE_FILENAME = "testkit-addons.json"
+
+_SCALARS = (str, int, float, bool, type(None))
+
+
+def _marshallable(value):
+    if isinstance(value, _SCALARS):
+        return value
+    if isinstance(value, dict):
+        return {str(key): _marshallable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [_marshallable(item) for item in value]
+    return repr(value)
 
 
 class FakeSpy:
@@ -217,8 +232,11 @@ class FakeSpy:
             self.stop_requested.set()
         return True
 
-    def rpc_eval_in_nvda(self, source):
-        return eval(source, {"__builtins__": {}}, {})  # test double only
+    def rpc_eval_in_nvda(self, source, timeout=30.0):
+        # Same contract as the real spy's eval_api: full builtins, and anything
+        # xmlrpc cannot carry comes back as its repr. A stricter double here
+        # would pass tests that the real NVDA then fails.
+        return _marshallable(eval(source, {"__builtins__": builtins}, {}))
 
     def rpc_addons_install(self, bundle_path, timeout=120.0):
         entry = {"name": "demo-addon", "version": "1.0.0", "state": "PENDING_INSTALL"}
@@ -246,6 +264,19 @@ class FakeSpy:
 
 
 def main() -> int:
+    # Real NVDA runs os.chdir(appDir) at startup (source/nvda.pyw), so the double
+    # must not inherit the host's cwd either: a relative NVDA_TESTKIT_OUTDIR that
+    # only works because both sides share a directory is a bug, not a pass.
+    scratch = tempfile.mkdtemp(prefix="fake-nvda-cwd-")
+    os.chdir(scratch)
+    try:
+        return _serve()
+    finally:
+        os.chdir(tempfile.gettempdir())
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
+def _serve() -> int:
     token = os.environ.get("NVDA_TESTKIT_TOKEN")
     out_dir = os.environ.get("NVDA_TESTKIT_OUTDIR")
     if not token or not out_dir:

@@ -79,7 +79,9 @@ def provision(settings: TestkitSettings) -> Provisioned:
     launcher = ensure_launcher(info)
 
     workdir = Path(tempfile.mkdtemp(prefix="nvda-testkit-"))
-    out_dir = settings.out_dir
+    # Resolved here too, not just in NvdaProcess, so log_file below is absolute:
+    # NVDA chdirs into its own directory before it opens either of them.
+    out_dir = settings.out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     portable = create_portable(launcher, workdir / "nvda")

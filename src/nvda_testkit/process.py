@@ -87,9 +87,13 @@ class NvdaProcess:
         timeout_scale: float = 1.0,
     ) -> None:
         self.argv = list(argv)
-        self.out_dir = Path(out_dir)
+        # NVDA runs os.chdir(appDir) at startup (source/nvda.pyw), so a relative
+        # NVDA_TESTKIT_OUTDIR would resolve against the portable copy, not us.
+        self.out_dir = Path(out_dir).resolve()
         self.token = token or new_token()
-        self.log_file = Path(log_file) if log_file else None
+        self._log_file_base = Path(log_file).resolve() if log_file else None
+        self.log_file = self._log_file_base
+        self._start_count = 0
         self.timeout_scale = timeout_scale
         self._quit_via = quit_via
         self._extra_env = dict(env or {})
@@ -121,11 +125,22 @@ class NvdaProcess:
         content = self.log_file.read_text(encoding="utf-8", errors="replace").splitlines()
         return "\n".join(content[-lines:])
 
+    def _number_log_file(self) -> None:
+        """Point --log-file at a fresh numbered file: NVDA truncates it on every start."""
+        if self._log_file_base is None:
+            return
+        base = self._log_file_base
+        self.log_file = base.with_name(f"{base.stem}-{self._start_count}{base.suffix}")
+        flag = f"--log-file={self.log_file}"
+        self.argv = [flag if arg.startswith("--log-file=") else arg for arg in self.argv]
+
     def start(self, timeout: float = 60) -> Handshake:
         deadline_seconds = timeout * self.timeout_scale
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.handshake_path.unlink(missing_ok=True)
         self._handshake = None
+        self._start_count += 1
+        self._number_log_file()
 
         self._proc = subprocess.Popen(self.argv, env=self._environment())
 
@@ -201,7 +216,10 @@ class NvdaProcess:
             return
         if self._proc.poll() is None:
             self._proc.kill()
-            self._proc.wait(timeout=30)
+            # kill() is called from except-handlers; a reap that times out here
+            # would replace the original failure (and its log tail) with itself.
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                self._proc.wait(timeout=30)
         self._proc = None
         self._handshake = None
 

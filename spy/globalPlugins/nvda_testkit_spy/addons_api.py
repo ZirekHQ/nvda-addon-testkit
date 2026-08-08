@@ -64,11 +64,30 @@ def addons_state(name, timeout=10.0):
     return run_on_main_thread(lambda: _state(name), timeout=timeout)
 
 
+def _install_errors(bundle):
+    failures = getattr(bundle, "_installExceptions", None) or ()
+    return "; ".join("%s: %s" % (type(e).__name__, e) for e in failures) or "none recorded"
+
+
 def _install(bundle_path):
     import addonHandler
 
     bundle = addonHandler.AddonBundle(bundle_path)
-    return _describe(addonHandler.installAddonBundle(bundle))
+    addon = addonHandler.installAddonBundle(bundle)
+    if addon is None:
+        raise RuntimeError(
+            "NVDA could not extract the add-on bundle %s. Errors: %s"
+            % (bundle_path, _install_errors(bundle))
+        )
+    # installAddonBundle returns the Addon even when installTasks.onInstall raised,
+    # having quietly removed it again; only _installExceptions records that.
+    if getattr(bundle, "_installExceptions", None):
+        raise RuntimeError(
+            "Add-on %s extracted, but installTasks.onInstall failed and NVDA removed it "
+            "again. Errors: %s"
+            % (bundle.manifest.get("name", bundle_path), _install_errors(bundle))
+        )
+    return _describe(addon)
 
 
 @rpc_method

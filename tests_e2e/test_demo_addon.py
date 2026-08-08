@@ -9,7 +9,9 @@ STARTUP_MESSAGE = "testkit demo add-on loaded"
 
 
 @pytest.mark.fresh_nvda
-def test_install_is_two_phase_and_completes_on_restart(nvda, built_demo_addon):
+def test_install_is_two_phase_and_completes_on_restart(
+    nvda, built_demo_addon, assert_no_unexpected_errors
+):
     """Owns the install lifecycle end to end, and leaves NVDA as it found it.
 
     This test deliberately does NOT use addon_under_test: that fixture is
@@ -24,7 +26,9 @@ def test_install_is_two_phase_and_completes_on_restart(nvda, built_demo_addon):
 
     nvda.restart()
     assert nvda.addons.state("testkit-demo") is AddonState.ENABLED
-    nvda.log.assert_no_errors()
+    # Completing the install runs installTasks.onInstall during startup, so this
+    # has to cover the whole restart -- allowlisted, not scoped past it.
+    assert_no_unexpected_errors(nvda)
 
     nvda.addons.remove("testkit-demo")
     nvda.restart()
