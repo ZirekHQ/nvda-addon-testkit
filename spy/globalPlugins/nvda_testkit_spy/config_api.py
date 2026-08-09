@@ -1,8 +1,12 @@
 # coding: utf-8
 """Read and write NVDA's configuration.
 
-Writes go through the main thread: NVDA reacts to some config changes
-immediately, and doing that from the server thread is how you get a flake.
+Every access goes through the main thread. Writes: NVDA reacts to some config
+changes immediately, and doing that from the server thread is how you get a
+flake. Reads: config.conf is a live structure NVDA's main thread mutates
+during and after startup, so iterating it from the server thread races those
+mutations -- observed as "dictionary changed size during iteration" raised
+from inside NVDA's own ConfigManager.dict().
 """
 
 import copy
@@ -27,7 +31,7 @@ def _walk(path):
 
 @rpc_method
 def config_get(path):
-    return _plain(_walk(list(path)))
+    return run_on_main_thread(lambda: _plain(_walk(list(path))))
 
 
 def _is_section(node):
@@ -73,11 +77,15 @@ def _plain(node):
     return str(node)
 
 
-@rpc_method
-def config_snapshot():
+def _snapshot():
     import config
 
     return _plain(config.conf)
+
+
+@rpc_method
+def config_snapshot():
+    return run_on_main_thread(_snapshot)
 
 
 def _restore(snapshot):
