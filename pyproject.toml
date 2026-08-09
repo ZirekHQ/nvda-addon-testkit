@@ -21,7 +21,7 @@ classifiers = [
 dependencies = ["pytest>=8.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff>=0.6"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6"]
 
 [project.urls]
 Homepage = "https://github.com/ZirekHQ/nvda-addon-testkit"
@@ -45,3 +45,10 @@ markers = [
 # glob; narrow it so they are not collection candidates. Class-based tests must
 # therefore be named *Tests.
 python_classes = ["*Tests"]
+
+[tool.coverage.run]
+source = ["src/nvda_testkit"]
+# Lets `coverage combine` merge the ubuntu and windows legs' data files
+# despite their divergent path separators.
+relative_files = true
+omit = ["src/nvda_testkit/_spy/*"]
