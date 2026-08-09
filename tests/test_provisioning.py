@@ -8,9 +8,17 @@ from pathlib import Path
 import pytest
 
 from nvda_testkit import provisioning
+from nvda_testkit.errors import UnsupportedPlatformError
 from nvda_testkit.settings import TestkitSettings
 
 FAKE = Path(__file__).parent / "fake_nvda.py"
+
+
+def test_provision_refuses_off_windows(monkeypatch):
+    monkeypatch.setattr(provisioning.sys, "platform", "linux")
+
+    with pytest.raises(UnsupportedPlatformError, match="needs Windows"):
+        provisioning.provision(TestkitSettings())
 
 
 def test_a_malformed_handshake_does_not_leak_the_process(monkeypatch):
@@ -32,8 +40,9 @@ def test_a_malformed_handshake_does_not_leak_the_process(monkeypatch):
 
     monkeypatch.setattr(provisioning, "NvdaProcess", RecordingProcess)
 
+    settings = TestkitSettings()
     with pytest.raises(KeyError):
-        provisioning.provision_fake(TestkitSettings(), FAKE)
+        provisioning.provision_fake(settings, FAKE)
 
     assert created, "expected an NvdaProcess to have been constructed"
     assert created[0].is_running is False, "the leaked subprocess must be killed on failure"

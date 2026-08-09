@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+pytest_plugins = ["pytester"]
+
 FAKE_NVDA = Path(__file__).parent / "fake_nvda.py"
 
 

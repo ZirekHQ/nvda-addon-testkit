@@ -2,8 +2,6 @@ from pathlib import Path
 
 import pytest
 
-pytest_plugins = ["pytester"]
-
 FAKE = Path(__file__).parent / "fake_nvda.py"
 
 
@@ -145,6 +143,133 @@ def test_xdist_with_a_single_worker_is_allowed(harness):
         """
     )
     harness.runpytest("-n", "1").assert_outcomes(passed=1)
+
+
+def test_addon_bundle_requires_configuration(pytester):
+    pytester.makepyfile(
+        """
+        def test_it(addon_bundle):
+            pass
+        """
+    )
+    result = pytester.runpytest()
+    result.assert_outcomes(errors=1)
+    result.stdout.fnmatch_lines(["*No add-on bundle configured*"])
+
+
+def test_addon_bundle_requires_a_match(pytester):
+    pytester.makepyprojecttoml(
+        """
+        [tool.nvda-testkit]
+        addon-bundle = "dist/*.nvda-addon"
+        """
+    )
+    pytester.makepyfile(
+        """
+        def test_it(addon_bundle):
+            pass
+        """
+    )
+    result = pytester.runpytest()
+    result.assert_outcomes(errors=1)
+    result.stdout.fnmatch_lines(["*No add-on bundle matched*Build it first*"])
+
+
+def test_addon_bundle_refuses_more_than_one_match(pytester):
+    pytester.makepyprojecttoml(
+        """
+        [tool.nvda-testkit]
+        addon-bundle = "dist/*.nvda-addon"
+        """
+    )
+    dist = pytester.path / "dist"
+    dist.mkdir()
+    (dist / "demo-1.0.0.nvda-addon").write_bytes(b"")
+    (dist / "demo-1.0.1.nvda-addon").write_bytes(b"")
+    pytester.makepyfile(
+        """
+        def test_it(addon_bundle):
+            pass
+        """
+    )
+    result = pytester.runpytest()
+    result.assert_outcomes(errors=1)
+    result.stdout.fnmatch_lines(["*matched 2 bundles*Clean the stale ones out*"])
+
+
+def test_addon_bundle_returns_the_single_match(pytester):
+    pytester.makepyprojecttoml(
+        """
+        [tool.nvda-testkit]
+        addon-bundle = "dist/*.nvda-addon"
+        """
+    )
+    dist = pytester.path / "dist"
+    dist.mkdir()
+    bundle = dist / "demo-1.0.0.nvda-addon"
+    bundle.write_bytes(b"")
+    pytester.makepyfile(
+        """
+        from pathlib import Path
+
+        def test_it(addon_bundle):
+            assert addon_bundle == Path("dist/demo-1.0.0.nvda-addon")
+        """
+    )
+    pytester.runpytest().assert_outcomes(passed=1)
+
+
+def test_reset_failure_during_teardown_warns_instead_of_failing(harness):
+    # nvda_reset is autouse and runs after every test; making the *second*
+    # reset() (its teardown call, not the `nvda` fixture's setup call) raise
+    # is what exercises the warning branch instead of just failing the test.
+    harness.makeconftest(
+        """
+        from nvda_testkit.client import NvdaClient
+
+        _real_reset = NvdaClient.reset
+        _calls = {"n": 0}
+
+        def _reset(self):
+            _calls["n"] += 1
+            if _calls["n"] > 1:
+                raise RuntimeError("synthetic reset failure")
+            return _real_reset(self)
+
+        NvdaClient.reset = _reset
+        """
+    )
+    harness.makepyfile(
+        """
+        def test_it(nvda):
+            pass
+        """
+    )
+    result = harness.runpytest("-W", "default")
+    result.assert_outcomes(passed=1)
+    result.stdout.fnmatch_lines(["*reset() failed during teardown*synthetic reset failure*"])
+
+
+def test_addon_under_test_installs_and_restarts_to_complete_it(harness):
+    harness.makepyprojecttoml(
+        """
+        [tool.nvda-testkit]
+        addon-bundle = "dist/*.nvda-addon"
+        """
+    )
+    dist = harness.path / "dist"
+    dist.mkdir()
+    (dist / "demo-addon-1.0.0.nvda-addon").write_bytes(b"")
+    harness.makepyfile(
+        """
+        from nvda_testkit.namespaces.addons import AddonState
+
+        def test_it(addon_under_test, nvda_session):
+            assert addon_under_test.name == "demo-addon-1.0.0.nvda-addon"
+            assert nvda_session.addons.state("demo-addon") is AddonState.ENABLED
+        """
+    )
+    harness.runpytest().assert_outcomes(passed=1)
 
 
 def test_a_test_that_does_not_ask_for_nvda_never_starts_it(harness):
