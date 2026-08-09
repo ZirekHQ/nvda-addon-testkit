@@ -22,7 +22,8 @@ _CANCELLATIONS = 0
 _INSTALLED = False
 
 
-def _on_speech_queued(speechSequence=None, **kwargs):
+# speechSequence matches extensions.pre_speechQueued's keyword call signature.
+def _on_speech_queued(speechSequence=None, **kwargs):  # NOSONAR
     if not speechSequence:
         return
     entry = {

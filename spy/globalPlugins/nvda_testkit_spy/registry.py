@@ -31,16 +31,16 @@ class Dispatcher:
     def _dispatch(self, method, params):
         handler = METHODS.get(method)
         if handler is None:
-            raise Exception("UNKNOWN: no such method %r" % (method,))
+            raise LookupError("UNKNOWN: no such method %r" % (method,))
         if not params or not isinstance(params[0], str):
-            raise Exception("AUTH: first argument must be the session token")
+            raise PermissionError("AUTH: first argument must be the session token")
         if not hmac.compare_digest(params[0], self._token):
-            raise Exception("AUTH: token rejected; is a stale NVDA still running?")
+            raise PermissionError("AUTH: token rejected; is a stale NVDA still running?")
         try:
             return handler(*params[1:])
         except Exception as error:
             # Carry the traceback across the wire: the host cannot attach a
             # debugger to NVDA, so this string is all the evidence there is.
-            raise Exception(
+            raise RuntimeError(
                 "%s: %s\n%s" % (type(error).__name__, error, traceback.format_exc())
             ) from error

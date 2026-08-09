@@ -8,6 +8,7 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import cast
 
 _KEY_MAP = {
     "nvda-channel": "channel",
@@ -64,4 +65,4 @@ def load_settings(
         if value is not None:
             values[field] = _coerce(field, value)
 
-    return replace(TestkitSettings(), **values)
+    return cast(TestkitSettings, replace(TestkitSettings(), **values))
