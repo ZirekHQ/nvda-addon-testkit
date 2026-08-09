@@ -13,6 +13,7 @@ import json
 import os
 import secrets
 import subprocess
+import sys
 import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -125,6 +126,58 @@ class NvdaProcess:
         content = self.log_file.read_text(encoding="utf-8", errors="replace").splitlines()
         return "\n".join(content[-lines:])
 
+    def _hang_diagnostics(self) -> str:
+        """Best-effort Windows process/AV snapshot, captured *before* kill().
+
+        A real NVDA that never even opens its own log file points at something
+        blocking before Python starts -- Defender's on-access scan of a
+        freshly-extracted .exe is the leading suspect on GH runners. Never
+        raises: a diagnostic that itself fails must not replace the original
+        HandshakeTimeout.
+        """
+        if sys.platform != "win32":
+            return ""
+        pid = self._proc.pid if self._proc is not None else None
+        sections = []
+        try:
+            tasklist = subprocess.run(
+                ["tasklist", "/V", "/FO", "CSV"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            needles = [needle for needle in ("nvda", "werfault", f'"{pid}"') if needle]
+            matches = [
+                line
+                for line in tasklist.stdout.splitlines()
+                if any(needle in line.lower() for needle in needles)
+            ]
+            sections.append(
+                "tasklist (nvda/WerFault/our pid):\n" + ("\n".join(matches) or "(none found)")
+            )
+        except Exception as error:
+            sections.append(f"tasklist failed: {error}")
+        try:
+            defender = subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    "(Get-MpComputerStatus).RealTimeProtectionEnabled",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+            status = defender.stdout.strip() or defender.stderr.strip() or "(unknown)"
+            sections.append(f"Defender real-time protection enabled: {status}")
+        except Exception as error:
+            sections.append(f"Defender status check failed: {error}")
+        return "\n\n".join(sections)
+
     def _number_log_file(self) -> None:
         """Point --log-file at a fresh numbered file: NVDA truncates it on every start."""
         if self._log_file_base is None:
@@ -163,11 +216,12 @@ class NvdaProcess:
                 return self._handshake
             time.sleep(_POLL_INTERVAL)
 
+        diagnostics = self._hang_diagnostics()
         self.kill()
         raise HandshakeTimeout(
             f"NVDA started but never announced itself within {deadline_seconds:.1f}s. "
             f"Expected {self.handshake_path}. Is the spy add-on installed and enabled?\n"
-            f"Log tail:\n{self.log_tail()}"
+            f"Log tail:\n{self.log_tail()}" + (f"\n\n{diagnostics}" if diagnostics else "")
         )
 
     def _request_quit(self) -> None:
