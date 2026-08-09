@@ -92,3 +92,17 @@ def test_restore_runs_twice_without_error(api):
     snapshot = api.config_snapshot()
     api.config_restore(snapshot)
     api.config_restore(snapshot)
+
+
+def test_snapshot_stringifies_a_leaf_xmlrpc_cannot_marshal(api):
+    """Real NVDA's config tree holds leaves .dict() alone does not flatten --
+
+    e.g. a config.featureFlag entry comes back as a raw, unresolved
+    `property` descriptor rather than its value.
+    """
+    import config
+
+    config.conf["quirky"] = {"flag": property(lambda self: True)}
+    snapshot = api.config_snapshot()
+    assert isinstance(snapshot["quirky"]["flag"], str)
+    xmlrpc.client.dumps((snapshot,), allow_none=True)

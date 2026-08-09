@@ -64,7 +64,13 @@ def _plain(node):
         return {key: _plain(value) for key, value in node.items()}
     if isinstance(node, (list, tuple)):
         return [_plain(item) for item in node]
-    return node
+    if isinstance(node, (str, int, float, bool, bytes, type(None))):
+        return node
+    # A handful of real config leaves (e.g. config.featureFlag entries) come
+    # back as an unresolved `property` descriptor even after .dict() above;
+    # xmlrpc cannot marshal that. Stringify rather than let one odd leaf take
+    # the whole snapshot down.
+    return str(node)
 
 
 @rpc_method
