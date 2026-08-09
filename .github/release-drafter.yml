@@ -1,0 +1,36 @@
+# Release Drafter config. Maintains a draft release on GitHub that auto-updates
+# as PRs merge into main. At release time, open the draft, confirm/adjust the
+# tag (vX.Y.Z), and publish -- that `release: published` event is what
+# publish.yml uses to build and upload to PyPI. See CONTRIBUTING.md.
+
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+template: |
+  $CHANGES
+
+categories:
+  - title: '🐛 Fixes'
+    labels:
+      - bug
+  - title: '✨ Features'
+    labels:
+      - enhancement
+  - title: '📚 Documentation'
+    labels:
+      - documentation
+  - title: '🧹 Maintenance'
+    labels:
+      - chore
+      - dependencies
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&'
+
+# We tag manually, so don't try to auto-bump versions based on labels.
+# Leave $RESOLVED_VERSION as a placeholder the maintainer overrides at
+# release time.
+version-resolver:
+  default: patch
+
+exclude-labels:
+  - skip-changelog

@@ -1,5 +1,5 @@
 """End-to-end testing for NVDA add-ons against a real NVDA."""
 
-__version__ = "0.1.0.dev0"
+from nvda_testkit._version import __version__
 
 __all__ = ["__version__"]
