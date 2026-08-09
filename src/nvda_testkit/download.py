@@ -27,7 +27,7 @@ def default_cache_dir() -> Path:
 
 
 def sha1_file(path: Path) -> str:
-    digest = hashlib.sha1()  # nvaccess publishes SHA-1; matches NVDA's own updater
+    digest = hashlib.sha1()  # NOSONAR -- nvaccess publishes SHA-1; matches NVDA's own updater
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
