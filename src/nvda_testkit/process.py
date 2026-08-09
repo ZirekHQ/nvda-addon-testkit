@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import secrets
 import subprocess
@@ -54,7 +55,11 @@ def nvda_argv(
     portable: PortableNvda,
     log_file: Path,
     *,
-    log_level: str = "DEBUG",
+    # NVDA's --log-level takes one of the stdlib logging levels as an int
+    # (10/20/30/40/50), not a level name: a name fails argparse's type=int
+    # conversion and NVDA pops a blocking "Command-line Argument Error"
+    # dialog instead of exiting, hanging every real-NVDA test indefinitely.
+    log_level: int = logging.DEBUG,
     minimal: bool = False,
     extra: Iterable[str] = (),
 ) -> list[str]:

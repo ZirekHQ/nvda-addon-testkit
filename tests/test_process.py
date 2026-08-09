@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -127,7 +128,7 @@ def test_nvda_argv_builds_the_documented_flags(tmp_path):
     argv = nvda_argv(portable, tmp_path / "nvda.log")
     assert argv[0] == str(tmp_path / "nvda.exe")
     assert f"--log-file={tmp_path / 'nvda.log'}" in argv
-    assert "--log-level=DEBUG" in argv
+    assert f"--log-level={logging.DEBUG}" in argv
     assert f"--config-path={tmp_path / 'userConfig'}" in argv
     assert "--no-sr-flag" in argv
     assert "--minimal" not in argv
