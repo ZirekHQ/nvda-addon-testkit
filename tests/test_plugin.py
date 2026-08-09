@@ -13,7 +13,7 @@ def harness(pytester):
     pytester.makeini(
         f"""
         [pytest]
-        addopts = --nvda-fake={FAKE}
+        addopts = --nvda-fake={FAKE.as_posix()}
         """
     )
     return pytester
