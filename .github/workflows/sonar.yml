@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: "3.13"
 
-      - run: pip install --only-binary :all: -e ".[dev]"
+      - run: 'pip install --only-binary :all: -e ".[dev]"'
       - run: python tools/build_spy.py
 
       - name: Run tests with coverage
@@ -70,7 +70,7 @@ jobs:
         with:
           python-version: "3.13"
 
-      - run: pip install --only-binary :all: -e ".[dev]"
+      - run: 'pip install --only-binary :all: -e ".[dev]"'
       - run: python tools/build_spy.py
 
       - name: Run tests with coverage
