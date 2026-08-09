@@ -17,8 +17,9 @@ FAKE = Path(__file__).parent / "fake_nvda.py"
 def test_provision_refuses_off_windows(monkeypatch):
     monkeypatch.setattr(provisioning.sys, "platform", "linux")
 
+    settings = TestkitSettings()
     with pytest.raises(UnsupportedPlatformError, match="needs Windows"):
-        provisioning.provision(TestkitSettings())
+        provisioning.provision(settings)
 
 
 def test_a_malformed_handshake_does_not_leak_the_process(monkeypatch):
