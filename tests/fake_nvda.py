@@ -31,6 +31,14 @@ class FakeSpy:
         self._speech: list[dict] = []
         for canned in script.get("speech", []):
             self._speech.append({"items": canned, "timestamp": 0.0})
+        self._braille: list[dict] = []
+        self._cells = 40
+        self._gestures: list[dict] = []
+        self._config = {
+            "speech": {"synth": "espeak", "espeak": {"rate": 50}},
+            "braille": {"display": "noBraille"},
+        }
+        self._log: list[dict] = []
         self.stop_requested = threading.Event()
 
     def _dispatch(self, method: str, params: tuple):
@@ -77,10 +85,115 @@ class FakeSpy:
             self._speech.append({"items": items, "timestamp": time.time()})
         return len(self._speech)
 
+    def rpc_speech_clear(self):
+        with self._lock:
+            self._speech.clear()
+        return True
+
+    def rpc_speech_cancel_count(self):
+        return self._script.get("cancel_count", 0)
+
+    def rpc_speech_speak(self, text):
+        return self.rpc_speech_emit([{"kind": "text", "text": text}])
+
+    def rpc_speech_cancel(self):
+        return True
+
+    def rpc_braille_index(self):
+        with self._lock:
+            return len(self._braille)
+
+    def rpc_braille_since(self, index):
+        with self._lock:
+            return self._braille[index:]
+
+    def rpc_braille_clear(self):
+        with self._lock:
+            self._braille.clear()
+        return True
+
+    def rpc_braille_emit(self, text):
+        with self._lock:
+            self._braille.append({"text": text, "timestamp": time.time()})
+        return len(self._braille)
+
+    def rpc_braille_set_cell_count(self, count):
+        self._cells = int(count)
+        return True
+
+    def rpc_braille_cell_count(self):
+        return self._cells
+
+    def rpc_keys_press(self, gesture, timeout=10.0):
+        if "notakey" in gesture:
+            raise ValueError(f"{gesture!r} is not a gesture NVDA recognises")
+        with self._lock:
+            self._gestures.append({"gesture": gesture, "timestamp": time.time()})
+        return True
+
+    def rpc_keys_type(self, text, timeout=30.0):
+        named = {" ": "space", "\t": "tab", "\n": "enter"}
+        for character in text:
+            self.rpc_keys_press(named.get(character, character))
+        return True
+
+    def rpc_keys_sent(self):
+        with self._lock:
+            return list(self._gestures)
+
+    def rpc_config_get(self, path):
+        with self._lock:
+            node = self._config
+            for key in path:
+                node = node[key]
+            return node
+
+    def rpc_config_set(self, path, value):
+        with self._lock:
+            node = self._config
+            for key in path[:-1]:
+                node = node.setdefault(key, {})
+            node[path[-1]] = value
+        return True
+
+    def rpc_config_snapshot(self):
+        import copy as _copy
+
+        with self._lock:
+            return _copy.deepcopy(self._config)
+
+    def rpc_config_restore(self, snapshot):
+        import copy as _copy
+
+        with self._lock:
+            self._config = _copy.deepcopy(snapshot)
+        return True
+
+    def rpc_log_index(self):
+        with self._lock:
+            return len(self._log)
+
+    def rpc_log_since(self, index):
+        with self._lock:
+            return self._log[index:]
+
+    def rpc_log_clear(self):
+        with self._lock:
+            self._log.clear()
+        return True
+
+    def rpc_log_emit(self, level, message):
+        with self._lock:
+            self._log.append({"level": level, "message": message, "timestamp": time.time()})
+        return len(self._log)
+
     def rpc_quit(self):
         if not self._script.get("ignore_quit"):
             self.stop_requested.set()
         return True
+
+    def rpc_eval_in_nvda(self, source):
+        return eval(source, {"__builtins__": {}}, {})  # test double only
 
 
 def main() -> int:
