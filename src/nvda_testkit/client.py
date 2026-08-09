@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .errors import TestkitError
+from .namespaces.addons import AddonsNamespace
 from .namespaces.braille import BrailleNamespace
 from .namespaces.config import ConfigNamespace
 from .namespaces.keys import KeysNamespace
@@ -41,6 +42,7 @@ class NvdaClient:
 
     def _attach(self, rpc: RpcClient) -> None:
         self._rpc = rpc
+        self.addons = AddonsNamespace(rpc)
         self.speech = SpeechNamespace(rpc)
         self.braille = BrailleNamespace(rpc)
         self.keys = KeysNamespace(rpc)

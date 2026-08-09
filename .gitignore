@@ -6,6 +6,7 @@ build/
 *.egg-info/
 testOutput/
 src/nvda_testkit/_spy/
+examples/demo-addon.nvda-addon
 .pytest_cache/
 .ruff_cache/
 .idea/

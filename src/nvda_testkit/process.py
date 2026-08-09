@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import secrets
 import subprocess
+import sys
 import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -53,7 +55,11 @@ def nvda_argv(
     portable: PortableNvda,
     log_file: Path,
     *,
-    log_level: str = "DEBUG",
+    # NVDA's --log-level takes one of the stdlib logging levels as an int
+    # (10/20/30/40/50), not a level name: a name fails argparse's type=int
+    # conversion and NVDA pops a blocking "Command-line Argument Error"
+    # dialog instead of exiting, hanging every real-NVDA test indefinitely.
+    log_level: int = logging.DEBUG,
     minimal: bool = False,
     extra: Iterable[str] = (),
 ) -> list[str]:
@@ -87,9 +93,13 @@ class NvdaProcess:
         timeout_scale: float = 1.0,
     ) -> None:
         self.argv = list(argv)
-        self.out_dir = Path(out_dir)
+        # NVDA runs os.chdir(appDir) at startup (source/nvda.pyw), so a relative
+        # NVDA_TESTKIT_OUTDIR would resolve against the portable copy, not us.
+        self.out_dir = Path(out_dir).resolve()
         self.token = token or new_token()
-        self.log_file = Path(log_file) if log_file else None
+        self._log_file_base = Path(log_file).resolve() if log_file else None
+        self.log_file = self._log_file_base
+        self._start_count = 0
         self.timeout_scale = timeout_scale
         self._quit_via = quit_via
         self._extra_env = dict(env or {})
@@ -121,11 +131,74 @@ class NvdaProcess:
         content = self.log_file.read_text(encoding="utf-8", errors="replace").splitlines()
         return "\n".join(content[-lines:])
 
+    def _hang_diagnostics(self) -> str:
+        """Best-effort Windows process/AV snapshot, captured *before* kill().
+
+        A real NVDA that never even opens its own log file points at something
+        blocking before Python starts -- Defender's on-access scan of a
+        freshly-extracted .exe is the leading suspect on GH runners. Never
+        raises: a diagnostic that itself fails must not replace the original
+        HandshakeTimeout.
+        """
+        if sys.platform != "win32":
+            return ""
+        pid = self._proc.pid if self._proc is not None else None
+        sections = []
+        try:
+            tasklist = subprocess.run(
+                ["tasklist", "/V", "/FO", "CSV"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            needles = [needle for needle in ("nvda", "werfault", f'"{pid}"') if needle]
+            matches = [
+                line
+                for line in tasklist.stdout.splitlines()
+                if any(needle in line.lower() for needle in needles)
+            ]
+            sections.append(
+                "tasklist (nvda/WerFault/our pid):\n" + ("\n".join(matches) or "(none found)")
+            )
+        except Exception as error:
+            sections.append(f"tasklist failed: {error}")
+        try:
+            defender = subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    "(Get-MpComputerStatus).RealTimeProtectionEnabled",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+            status = defender.stdout.strip() or defender.stderr.strip() or "(unknown)"
+            sections.append(f"Defender real-time protection enabled: {status}")
+        except Exception as error:
+            sections.append(f"Defender status check failed: {error}")
+        return "\n\n".join(sections)
+
+    def _number_log_file(self) -> None:
+        """Point --log-file at a fresh numbered file: NVDA truncates it on every start."""
+        if self._log_file_base is None:
+            return
+        base = self._log_file_base
+        self.log_file = base.with_name(f"{base.stem}-{self._start_count}{base.suffix}")
+        flag = f"--log-file={self.log_file}"
+        self.argv = [flag if arg.startswith("--log-file=") else arg for arg in self.argv]
+
     def start(self, timeout: float = 60) -> Handshake:
         deadline_seconds = timeout * self.timeout_scale
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.handshake_path.unlink(missing_ok=True)
         self._handshake = None
+        self._start_count += 1
+        self._number_log_file()
 
         self._proc = subprocess.Popen(self.argv, env=self._environment())
 
@@ -148,11 +221,12 @@ class NvdaProcess:
                 return self._handshake
             time.sleep(_POLL_INTERVAL)
 
+        diagnostics = self._hang_diagnostics()
         self.kill()
         raise HandshakeTimeout(
             f"NVDA started but never announced itself within {deadline_seconds:.1f}s. "
             f"Expected {self.handshake_path}. Is the spy add-on installed and enabled?\n"
-            f"Log tail:\n{self.log_tail()}"
+            f"Log tail:\n{self.log_tail()}" + (f"\n\n{diagnostics}" if diagnostics else "")
         )
 
     def _request_quit(self) -> None:
@@ -201,7 +275,10 @@ class NvdaProcess:
             return
         if self._proc.poll() is None:
             self._proc.kill()
-            self._proc.wait(timeout=30)
+            # kill() is called from except-handlers; a reap that times out here
+            # would replace the original failure (and its log tail) with itself.
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                self._proc.wait(timeout=30)
         self._proc = None
         self._handshake = None
 

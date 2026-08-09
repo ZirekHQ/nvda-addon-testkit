@@ -21,7 +21,7 @@ classifiers = [
 dependencies = ["pytest>=8.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "pytest-xdist>=3.0", "ruff>=0.6"]
 
 [project.urls]
 Homepage = "https://github.com/ZirekHQ/nvda-addon-testkit"
@@ -29,6 +29,9 @@ Issues = "https://github.com/ZirekHQ/nvda-addon-testkit/issues"
 
 [project.scripts]
 nvda-testkit = "nvda_testkit.cli:main"
+
+[project.entry-points.pytest11]
+nvda_testkit = "nvda_testkit.plugin"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nvda_testkit"]

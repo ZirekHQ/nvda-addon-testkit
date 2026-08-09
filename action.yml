@@ -1,0 +1,27 @@
+name: Set up nvda-addon-testkit
+description: Install Python, the testkit, and warm the NVDA launcher cache
+inputs:
+  nvda-channel:
+    description: stable, beta, alpha, or a pinned version
+    default: stable
+  python-version:
+    description: Python version for the test runner
+    default: "3.13"
+  testkit-version:
+    description: Version specifier for nvda-addon-testkit
+    default: ""
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+    - shell: bash
+      run: pip install "nvda-addon-testkit${{ inputs.testkit-version }}"
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/nvda-testkit
+        key: nvda-launcher-${{ inputs.nvda-channel }}-${{ github.run_id }}
+        restore-keys: nvda-launcher-${{ inputs.nvda-channel }}-
+    - shell: bash
+      run: nvda-testkit provision --channel "${{ inputs.nvda-channel }}"

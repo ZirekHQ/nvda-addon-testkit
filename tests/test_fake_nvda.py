@@ -149,3 +149,14 @@ def test_version_override_knobs_affect_handshake_and_rpc(spawned, tmp_path):
     assert version["version"] == "2099.1"
     assert version["apiVersion"] == "2099.1"
     assert version["apiCompatTo"] == "2098.1"
+
+
+def test_the_double_chdirs_away_from_the_hosts_cwd(spawned, tmp_path, monkeypatch):
+    """Real NVDA runs os.chdir(appDir) at startup; the double must not be laxer."""
+    monkeypatch.chdir(tmp_path)
+    spawned()
+    handshake = _await_handshake(tmp_path)
+    proxy = xmlrpc.client.ServerProxy(f"http://127.0.0.1:{handshake['port']}", allow_none=True)
+    cwd = proxy.eval_in_nvda("tok", "__import__('os').getcwd()")
+    assert Path(cwd) != tmp_path
+    assert Path(cwd).name.startswith("fake-nvda-cwd-")

@@ -1,8 +1,12 @@
 # coding: utf-8
 """Read and write NVDA's configuration.
 
-Writes go through the main thread: NVDA reacts to some config changes
-immediately, and doing that from the server thread is how you get a flake.
+Every access goes through the main thread. Writes: NVDA reacts to some config
+changes immediately, and doing that from the server thread is how you get a
+flake. Reads: config.conf is a live structure NVDA's main thread mutates
+during and after startup, so iterating it from the server thread races those
+mutations -- observed as "dictionary changed size during iteration" raised
+from inside NVDA's own ConfigManager.dict().
 """
 
 import copy
@@ -27,7 +31,12 @@ def _walk(path):
 
 @rpc_method
 def config_get(path):
-    return _walk(list(path))
+    return run_on_main_thread(lambda: _plain(_walk(list(path))))
+
+
+def _is_section(node):
+    """Section-like: a dict, a ConfigObj Section, or an AggregatedSection."""
+    return hasattr(node, "items") and hasattr(node, "__setitem__")
 
 
 def _assign(path, value):
@@ -35,7 +44,9 @@ def _assign(path, value):
 
     node = config.conf
     for key in path[:-1]:
-        if key not in node or not isinstance(node[key], dict):
+        # An AggregatedSection is not a dict, so an isinstance(..., dict) test
+        # here would overwrite a whole live section with {} on the way past it.
+        if key not in node or not _is_section(node[key]):
             node[key] = {}
         node = node[key]
     node[path[-1]] = value
@@ -48,32 +59,46 @@ def config_set(path, value):
 
 
 def _plain(node):
-    """Deep-copy a ConfigObj section into ordinary dicts, so it survives the wire."""
+    """Deep-copy NVDA's config objects into ordinary dicts, so they survive the wire."""
+    # config.conf is a ConfigManager and its sections are AggregatedSections;
+    # neither is a dict and xmlrpc can marshal neither, but both expose dict().
+    if hasattr(node, "dict"):
+        node = node.dict()
     if hasattr(node, "items"):
         return {key: _plain(value) for key, value in node.items()}
     if isinstance(node, (list, tuple)):
         return [_plain(item) for item in node]
-    return node
+    if isinstance(node, (str, int, float, bool, bytes, type(None))):
+        return node
+    # A handful of real config leaves (e.g. config.featureFlag entries) come
+    # back as an unresolved `property` descriptor even after .dict() above;
+    # xmlrpc cannot marshal that. Stringify rather than let one odd leaf take
+    # the whole snapshot down.
+    return str(node)
 
 
-@rpc_method
-def config_snapshot():
+def _snapshot():
     import config
 
     return _plain(config.conf)
 
 
+@rpc_method
+def config_snapshot():
+    return run_on_main_thread(_snapshot)
+
+
 def _restore(snapshot):
     import config
 
-    config.conf.clear()
-    # Assign key by key rather than update(): config.conf is a ConfigObj whose
-    # __setitem__ rebuilds nested dicts into Section objects. update() can write
-    # plain dicts straight in, leaving NVDA with a structurally different config
-    # than it started with. This runs between every test, so a degraded
-    # structure would poison the whole session.
+    # ConfigManager offers no clear(), no update() and no delete: a top-level key
+    # a test invented can only be emptied here, never removed.
+    live = config.conf.dict()
     for key, value in copy.deepcopy(snapshot).items():
         config.conf[key] = value
+    for key in live:
+        if key not in snapshot:
+            config.conf[key] = {}
 
 
 @rpc_method

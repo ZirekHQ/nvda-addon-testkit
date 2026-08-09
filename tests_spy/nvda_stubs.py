@@ -45,6 +45,79 @@ class FakeEventQueue:
             return not self.pending
 
 
+DEFAULT_CONFIG = {
+    "speech": {"synth": "espeak", "espeak": {"rate": 50}},
+    "braille": {"display": "noBraille"},
+}
+
+
+class FakeSection:
+    """Stands in for config.AggregatedSection.
+
+    Dict-shaped but deliberately not a dict, and with no __delitem__ -- that is
+    exactly what the real class is, and code that assumes otherwise either wipes
+    a live section or hands xmlrpc something it cannot marshal.
+    """
+
+    def __init__(self, data=None) -> None:
+        self._data: dict = {}
+        for key, value in (data or {}).items():
+            self[key] = value
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __setitem__(self, key, value) -> None:
+        self._data[key] = FakeSection(value) if isinstance(value, dict) else value
+
+    def __contains__(self, key) -> bool:
+        return key in self._data
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def get(self, key, default=None):
+        return self._data.get(key, default)
+
+    def items(self):
+        return self._data.items()
+
+    def copy(self) -> dict:
+        return dict(self.items())
+
+    def dict(self) -> dict:
+        return {
+            key: value.dict() if isinstance(value, FakeSection) else value
+            for key, value in self._data.items()
+        }
+
+
+class FakeConfigManager:
+    """Stands in for config.ConfigManager.
+
+    Defines only what the real one defines: no clear(), items(), keys(),
+    update() or __delitem__.
+    """
+
+    def __init__(self, data=None) -> None:
+        self.rootSection = FakeSection(data)
+
+    def __getitem__(self, key):
+        return self.rootSection[key]
+
+    def __setitem__(self, key, value) -> None:
+        self.rootSection[key] = value
+
+    def __contains__(self, key) -> bool:
+        return key in self.rootSection
+
+    def get(self, key, default=None):
+        return self.rootSection.get(key, default)
+
+    def dict(self) -> dict:
+        return self.rootSection.dict()
+
+
 class FakeAction:
     """Stands in for extensionPoints.Action."""
 
@@ -138,10 +211,7 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     extension_points.Filter = FakeFilter
 
     config_module = types.ModuleType("config")
-    config_module.conf = {
-        "speech": {"synth": "espeak", "espeak": {"rate": 50}},
-        "braille": {"display": "noBraille"},
-    }
+    config_module.conf = FakeConfigManager(DEFAULT_CONFIG)
     config_module.post_configProfileSwitch = FakeAction()
 
     speech_extensions = types.ModuleType("speech.extensions")
@@ -225,6 +295,53 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     input_core.manager = MagicMock()
     input_core.NoInputGestureAction = type("NoInputGestureAction", (Exception,), {})
 
+    addon_handler = types.ModuleType("addonHandler")
+
+    class _FakeAddon:
+        def __init__(self, name, version="1.0.0", pending_install=False):
+            self.name = name
+            self.version = version
+            self.isPendingInstall = pending_install
+            self.isPendingRemove = False
+            self.isDisabled = False
+            self.isRunning = not pending_install
+
+        def requestRemove(self):
+            self.isPendingRemove = True
+
+    addon_handler.Addon = _FakeAddon
+    addon_handler.INSTALLED = []
+
+    class AddonBundle:
+        def __init__(self, path):
+            self.path = path
+            self.manifest = {"name": "demo-addon", "version": "1.0.0"}
+            # NVDA records install-task failures here rather than raising them.
+            self._installExceptions: list = []
+
+    addon_handler.AddonBundle = AddonBundle
+
+    def _install_addon_bundle(bundle):
+        """Mirrors addonHandler.installAddonBundle: None only when extraction
+        fails, and the Addon even when installTasks.onInstall raised."""
+        outcome = addon_handler.NEXT_INSTALL_OUTCOME
+        if outcome == "extract-failure":
+            bundle._installExceptions.append(RuntimeError("bad zip"))
+            return None
+        addon = _FakeAddon(
+            bundle.manifest["name"], bundle.manifest["version"], pending_install=True
+        )
+        if outcome == "install-task-failure":
+            # NVDA completeRemove()s the add-on again, so it is never available.
+            bundle._installExceptions.append(RuntimeError("onInstall exploded"))
+            return addon
+        addon_handler.INSTALLED.append(addon)
+        return addon
+
+    addon_handler.NEXT_INSTALL_OUTCOME = "ok"
+    addon_handler.installAddonBundle = _install_addon_bundle
+    addon_handler.getAvailableAddons = lambda refresh=False: iter(list(addon_handler.INSTALLED))
+
     modules = {
         "queueHandler": queue_handler,
         "logHandler": log_handler,
@@ -243,6 +360,7 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
         "braille.display": braille_display,
         "keyboardHandler": keyboard_handler,
         "inputCore": input_core,
+        "addonHandler": addon_handler,
     }
     sys.modules.update(modules)
     modules["_eventQueue"] = queue

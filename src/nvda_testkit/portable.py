@@ -29,6 +29,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "autoCheck": False,
         "startupNotification": False,
         "allowUsageStats": False,
+        # NVDA only skips AskAllowUsageStatsDialog once this is set; setting
+        # allowUsageStats alone still shows the blocking first-run prompt.
+        "askedAllowUsageStats": True,
     },
     "braille": {
         "display": "noBraille",
