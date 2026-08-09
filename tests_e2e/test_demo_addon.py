@@ -1,5 +1,7 @@
 """The real thing: install an add-on into a real NVDA and prove it works."""
 
+import re
+
 import pytest
 
 from nvda_testkit.namespaces.addons import AddonState
@@ -37,12 +39,12 @@ def test_install_is_two_phase_and_completes_on_restart(
 
 def test_the_installed_addon_logs_at_startup(nvda, addon_under_test):
     # The nvda fixture's reset() clears the log, so restart here and read the
-    # fresh process's startup output before anything else can clear it.
+    # fresh process's startup output before anything else can clear it. The
+    # add-on logs on postNvdaStartup, which fires after the RPC handshake
+    # restart() already waited for, so the message may not be there yet the
+    # instant restart() returns -- wait_for it rather than reading once.
     nvda.restart()
-    messages = [record.message for record in nvda.log.all()]
-    assert any(STARTUP_MESSAGE in message for message in messages), (
-        f"expected {STARTUP_MESSAGE!r} in NVDA's log; got {messages[-20:]}"
-    )
+    nvda.log.wait_for(re.escape(STARTUP_MESSAGE), since=0, timeout=20)
 
 
 def test_its_gesture_produces_the_expected_speech(nvda, addon_under_test):
