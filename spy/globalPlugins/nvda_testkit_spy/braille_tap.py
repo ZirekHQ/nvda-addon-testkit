@@ -10,6 +10,8 @@ believes is attached.
 import threading
 import time
 
+from logHandler import log
+
 from .registry import rpc_method
 
 _LOCK = threading.RLock()
@@ -36,7 +38,18 @@ def install():
     global _INSTALLED
     if _INSTALLED:
         return
-    import braille.extensions as extensions
+    try:
+        import braille.extensions as extensions
+    except ImportError:
+        # `braille` ships as a plain module, not a package with an extensions
+        # submodule, on NVDA builds that predate the braille extension-point
+        # refactor. Braille capture is unavailable there; nothing else in
+        # the spy depends on it, so the rest must still start.
+        log.info(
+            "nvda-testkit spy: braille extension points unavailable on this NVDA; "
+            "braille capture disabled"
+        )
+        return
 
     extensions.pre_writeCells.register(_on_write_cells)
     extensions.filter_displayDimensions.register(_filter_dimensions)
