@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - run: pip install --only-binary :all: ruff
+      - run: 'pip install --only-binary :all: ruff'
       - run: ruff check .
       - run: ruff format --check .
 
@@ -36,7 +36,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - run: pip install --only-binary :all: -e ".[dev]"
+      - run: 'pip install --only-binary :all: -e ".[dev]"'
       - run: python tools/build_spy.py
       # Bare `pytest` so testpaths picks up tests_spy/ too. An explicit
       # `pytest tests/` silently skips every spy test in CI.
