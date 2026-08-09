@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage / configuration help
+    url: https://github.com/ZirekHQ/nvda-addon-testkit/blob/main/README.md
+    about: Start here for install, configuration, and fixture reference.

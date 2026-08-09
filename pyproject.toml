@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "nvda-addon-testkit"
-version = "0.1.0.dev0"
+dynamic = ["version"]
 description = "End-to-end testing for NVDA add-ons against a real NVDA"
 readme = "README.md"
 license = "GPL-2.0-or-later"
@@ -32,6 +32,12 @@ nvda-testkit = "nvda_testkit.cli:main"
 
 [project.entry-points.pytest11]
 nvda_testkit = "nvda_testkit.plugin"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/nvda_testkit/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nvda_testkit"]

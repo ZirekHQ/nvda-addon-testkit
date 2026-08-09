@@ -1,0 +1,77 @@
+name: Bug report
+description: Something in the testkit isn't behaving the way it should.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. The fields below help reproduce and diagnose the problem quickly — please fill in as much as you can.
+
+  - type: input
+    id: testkit-version
+    attributes:
+      label: nvda-addon-testkit version
+      description: Output of `nvda-testkit --version`, or the version pinned in your requirements.
+      placeholder: e.g. 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: nvda-channel
+    attributes:
+      label: NVDA channel / version under test
+      description: Whatever you passed as `nvda-channel`, or the resolved version from `nvda-testkit doctor`.
+      placeholder: e.g. stable / alpha / 2026.1.1
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      description: The e2e suite only runs on Windows; host/spy tests run anywhere. Note which you were running.
+      placeholder: e.g. Windows 11 24H2 (x64) / Ubuntu 24.04 (host tests only)
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you run, step by step? A minimal failing test or `pytest` invocation is ideal.
+      placeholder: |
+        1. pip install -e ".[dev]"
+        2. pytest tests_e2e/test_smoke.py -v
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What you thought would happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: What actually happened. Include the pytest failure/traceback verbatim.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Full traceback, `nvda.log` records around the failure, or `nvda-testkit doctor` output.
+      render: text
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Workarounds you tried, related issues, your `[tool.nvda-testkit]` config, etc.

@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest a new fixture, namespace, or improvement to existing behavior.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. A bit of context helps decide whether and how to prioritize it.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe what you're trying to test or automate, not just the API you have in mind. This often suggests a simpler fixture or a better fit with an existing namespace.
+      placeholder: e.g. "I want to assert on the content of a specific braille cell range, not just the full display buffer..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should change? If you have a specific fixture/API shape in mind, sketch it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you tried, or existing workarounds using the current fixtures.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Links to similar testing APIs elsewhere, example add-on code this would help test, etc.
