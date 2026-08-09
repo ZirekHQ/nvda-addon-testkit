@@ -8,6 +8,7 @@ answering this run's questions.
 
 from __future__ import annotations
 
+import threading
 import time
 import xmlrpc.client
 from collections.abc import Callable
@@ -53,6 +54,9 @@ class RpcClient:
             use_builtin_types=True,
             transport=_TimeoutTransport(socket_timeout * timeout_scale),
         )
+        # ServerProxy reuses a single HTTP connection, which isn't safe for
+        # concurrent requests (e.g. wait_for polling while another thread emits).
+        self._lock = threading.Lock()
 
     @classmethod
     def from_handshake(
@@ -62,7 +66,8 @@ class RpcClient:
 
     def call(self, method: str, *args: Any) -> Any:
         try:
-            return getattr(self._proxy, method)(self.token, *args)
+            with self._lock:
+                return getattr(self._proxy, method)(self.token, *args)
         except xmlrpc.client.Fault as fault:
             message = fault.faultString
             if "AUTH:" in message:
