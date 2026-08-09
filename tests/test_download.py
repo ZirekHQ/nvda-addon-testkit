@@ -50,8 +50,9 @@ def test_second_call_is_a_cache_hit(tmp_path):
 
 def test_digest_mismatch_refuses_and_leaves_nothing_executable(tmp_path):
     fetch = _counting_fetch(b"tampered payload")
+    info = _info()
     with pytest.raises(HashMismatchError) as excinfo:
-        ensure_launcher(_info(), tmp_path, fetch=fetch)
+        ensure_launcher(info, tmp_path, fetch=fetch)
     assert excinfo.value.expected == PAYLOAD_SHA1
     assert list(tmp_path.glob("*.exe")) == [], "a bad download must not be left in the cache"
 
@@ -81,8 +82,9 @@ def test_partial_downloads_are_never_visible_under_the_final_name(tmp_path):
     def exploding_fetch(url):
         raise OSError("connection reset")
 
+    info = _info()
     with pytest.raises(OSError, match="connection reset"):
-        ensure_launcher(_info(), tmp_path, fetch=exploding_fetch)
+        ensure_launcher(info, tmp_path, fetch=exploding_fetch)
     assert list(tmp_path.iterdir()) == []
 
 

@@ -28,7 +28,7 @@ def run_on_main_thread(fn, timeout=DEFAULT_TIMEOUT):
     def runner():
         try:
             outcome["value"] = fn()
-        except BaseException as error:  # forwarded to the caller verbatim
+        except BaseException as error:  # NOSONAR -- forwarded verbatim, see raise below
             outcome["error"] = error
             if timed_out.is_set():
                 # The caller already gave up, so nothing will re-raise this.

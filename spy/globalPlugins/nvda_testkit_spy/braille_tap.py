@@ -18,7 +18,8 @@ _CELL_COUNT = 40
 _INSTALLED = False
 
 
-def _on_write_cells(cells=None, rawText=None, currentCellCount=None, **kwargs):
+# Parameter names match extensions.pre_writeCells' keyword call signature.
+def _on_write_cells(cells=None, rawText=None, currentCellCount=None, **kwargs):  # NOSONAR
     with _LOCK:
         _WRITES.append({"text": rawText if rawText is not None else "", "timestamp": time.time()})
 
