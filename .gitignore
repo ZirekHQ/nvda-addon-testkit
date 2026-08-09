@@ -5,7 +5,7 @@ dist/
 build/
 *.egg-info/
 testOutput/
-src/nvda_testkit/_spy/*.nvda-addon
+src/nvda_testkit/_spy/
 .pytest_cache/
 .ruff_cache/
 .idea/
