@@ -1,0 +1,131 @@
+"""Minimal fakes for the NVDA modules the spy imports.
+
+The spy only ever runs inside NVDA, and there is no pip-installable NVDA, so
+its pure logic is tested by installing these into sys.modules before import.
+Each stub records what the spy did to it, so tests assert on interactions
+rather than on internals.
+"""
+
+from __future__ import annotations
+
+import sys
+import threading
+import types
+from unittest.mock import MagicMock
+
+
+class FakeEventQueue:
+    """Stands in for queueHandler's event queue plus the main thread draining it."""
+
+    def __init__(self) -> None:
+        self.pending: list = []
+        self.auto_drain = True
+        self._lock = threading.RLock()
+
+    def put(self, func) -> None:
+        with self._lock:
+            self.pending.append(func)
+        if self.auto_drain:
+            self.drain()
+
+    def drain(self) -> int:
+        drained = 0
+        while True:
+            with self._lock:
+                if not self.pending:
+                    return drained
+                func = self.pending.pop(0)
+            func()
+            drained += 1
+
+    def empty(self) -> bool:
+        with self._lock:
+            return not self.pending
+
+
+class FakeAction:
+    """Stands in for extensionPoints.Action."""
+
+    def __init__(self) -> None:
+        self.handlers: list = []
+
+    def register(self, handler) -> None:
+        self.handlers.append(handler)
+
+    def unregister(self, handler) -> None:
+        if handler in self.handlers:
+            self.handlers.remove(handler)
+
+    def notify(self, **kwargs) -> None:
+        for handler in list(self.handlers):
+            handler(**kwargs)
+
+
+class FakeFilter(FakeAction):
+    """Stands in for extensionPoints.Filter."""
+
+    def apply(self, value, **kwargs):
+        for handler in list(self.handlers):
+            value = handler(value, **kwargs)
+        return value
+
+
+def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.ModuleType]:
+    """Install the stubs into sys.modules and hand them back for assertions."""
+    queue = event_queue or FakeEventQueue()
+
+    queue_handler = types.ModuleType("queueHandler")
+    queue_handler.eventQueue = queue
+    queue_handler.queueFunction = lambda target_queue, func, *a, **kw: target_queue.put(
+        lambda: func(*a, **kw)
+    )
+    queue_handler.pumpAll = queue.drain
+
+    log_handler = types.ModuleType("logHandler")
+    log_handler.log = MagicMock()
+
+    global_plugin_handler = types.ModuleType("globalPluginHandler")
+
+    class GlobalPlugin:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def terminate(self):
+            pass
+
+    global_plugin_handler.GlobalPlugin = GlobalPlugin
+
+    version_info = types.ModuleType("versionInfo")
+    version_info.version = "2026.1.1"
+    version_info.formatBuildVersionString = lambda: "2026.1.1"
+
+    build_version = types.ModuleType("buildVersion")
+    build_version.version = "2026.1.1"
+
+    addon_api_version = types.ModuleType("addonAPIVersion")
+    addon_api_version.CURRENT = (2026, 1, 0)
+    addon_api_version.BACK_COMPAT_TO = (2026, 1, 0)
+    addon_api_version.formatForGUI = lambda v: ".".join(str(part) for part in v)
+
+    core = types.ModuleType("core")
+    core.postNvdaStartup = FakeAction()
+    core.triggerNVDAExit = MagicMock()
+    core.callLater = lambda delay, func, *a, **kw: func(*a, **kw)
+
+    extension_points = types.ModuleType("extensionPoints")
+    extension_points.Action = FakeAction
+    extension_points.Filter = FakeFilter
+
+    modules = {
+        "queueHandler": queue_handler,
+        "logHandler": log_handler,
+        "globalPluginHandler": global_plugin_handler,
+        "versionInfo": version_info,
+        "buildVersion": build_version,
+        "addonAPIVersion": addon_api_version,
+        "core": core,
+        "extensionPoints": extension_points,
+    }
+    sys.modules.update(modules)
+    modules["_eventQueue"] = queue
+    return modules

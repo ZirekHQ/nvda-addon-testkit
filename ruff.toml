@@ -3,3 +3,6 @@ target-version = "py311"
 
 [lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[lint.per-file-ignores]
+"spy/**" = ["UP", "B904"]

@@ -37,4 +37,7 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install -e ".[dev]"
-      - run: pytest tests/ -v
+      - run: python tools/build_spy.py
+      # Bare `pytest` so testpaths picks up tests_spy/ too. An explicit
+      # `pytest tests/` silently skips every spy test in CI.
+      - run: pytest -v
