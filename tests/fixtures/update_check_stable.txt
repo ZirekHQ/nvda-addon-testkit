@@ -1,0 +1,5 @@
+apiCompatTo: 2026.1.0
+apiVersion: 2026.1.1
+launcherHash: f35e30cd3c1c6375be52d0acaba701c5f6ddc7bd
+launcherUrl: https://download.nvaccess.org/releases/2026.1.1/nvda_2026.1.1.exe
+version: 2026.1.1
