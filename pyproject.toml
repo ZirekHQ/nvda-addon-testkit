@@ -39,9 +39,15 @@ source = "vcs"
 [tool.hatch.build.hooks.vcs]
 version-file = "src/nvda_testkit/_version.py"
 
+[tool.hatch.build]
+# Top-level, not just under targets.wheel: python -m build's wheel step
+# builds from the sdist, not the working tree, so the sdist needs this too --
+# without it the gitignored bundle never survives into the sdist for the
+# wheel step to find, regardless of what targets.wheel declares.
+artifacts = ["src/nvda_testkit/_spy/*.nvda-addon"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/nvda_testkit"]
-artifacts = ["src/nvda_testkit/_spy/*.nvda-addon"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "tests_spy"]
