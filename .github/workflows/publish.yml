@@ -19,6 +19,11 @@ jobs:
         with:
           python-version: "3.13"
       - run: "pip install --only-binary :all: build twine"
+      # Without this, hatchling's `artifacts = ["src/nvda_testkit/_spy/*.nvda-addon"]`
+      # matches nothing -- the bundle is gitignored and only exists once built --
+      # so the published wheel silently ships without it and every real (non-fake)
+      # provision() fails require_spy_bundle().
+      - run: python tools/build_spy.py
       - run: python -m build
       - run: twine check dist/*
       - uses: actions/upload-artifact@v5
