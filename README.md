@@ -44,7 +44,7 @@ jobs:
 ```
 
 The action is OS-agnostic — pick whichever Windows runner matches what
-your users run. CI for this project itself covers both `windows-2025`
+your users run. This repository's e2e test suite runs on both `windows-2025`
 and `windows-2022` (the latter for Windows 10 22H2, including builds
 still on Extended Security Updates).
 
