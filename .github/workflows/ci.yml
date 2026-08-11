@@ -43,10 +43,13 @@ jobs:
       - run: pytest -v
 
   e2e:
-    runs-on: windows-2025
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # windows-2022 covers Windows 10 22H2 (ESU). Drop it once ESU
+        # coverage is no longer needed.
+        os: [windows-2025, windows-2022]
         channel: [stable, alpha]
     continue-on-error: ${{ matrix.channel == 'alpha' }}
     steps:
@@ -62,13 +65,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/nvda-testkit
-          key: nvda-launcher-${{ matrix.channel }}-${{ github.run_id }}
-          restore-keys: nvda-launcher-${{ matrix.channel }}-
+          key: nvda-launcher-${{ matrix.os }}-${{ matrix.channel }}-${{ github.run_id }}
+          restore-keys: nvda-launcher-${{ matrix.os }}-${{ matrix.channel }}-
       - run: nvda-testkit doctor
       - run: pytest tests_e2e/ -v --nvda-channel=${{ matrix.channel }}
       - if: failure()
         uses: actions/upload-artifact@v5
         with:
-          name: e2e-${{ matrix.channel }}-artifacts
+          name: e2e-${{ matrix.os }}-${{ matrix.channel }}-artifacts
           path: testOutput/
           if-no-files-found: warn
