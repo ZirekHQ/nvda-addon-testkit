@@ -1,0 +1,10 @@
+= nvda-addon-testkit
+
+End-to-end testing for NVDA add-ons, against a real NVDA, in CI.
+
+An add-on's logic can be unit-tested with stubs, but not whether it installs, registers, and
+behaves inside NVDA itself. This kit provisions a disposable portable NVDA, installs the add-on
+into it, and lets pytest drive it.
+
+Docs spike: this component is aggregated into the org-wide
+https://zirekhq.github.io[ZirekHQ documentation site].

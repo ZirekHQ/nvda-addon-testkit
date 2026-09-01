@@ -1,0 +1,5 @@
+name: nvda-addon-testkit
+title: nvda-addon-testkit
+version: true
+nav:
+  - modules/ROOT/nav.adoc
