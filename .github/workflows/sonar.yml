@@ -95,7 +95,7 @@ jobs:
           python -m coverage xml
 
       - name: Upload coverage to GitHub Code Quality
-        uses: actions/upload-code-coverage@v1
+        uses: actions/upload-code-coverage@1c15be36fc3733ba839b1dd643bd9556e4426dc1 # v1
         with:
           file: coverage.xml
           language: Python
