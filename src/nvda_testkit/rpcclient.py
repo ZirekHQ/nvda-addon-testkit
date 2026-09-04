@@ -19,9 +19,6 @@ from .process import Handshake
 
 _DEFAULT_INTERVAL = 0.05
 
-#: Ceiling on any single call. Must exceed the longest server-side operation
-#: (addons_install allows 120s). Finite matters more than the exact value: a
-#: wedged NVDA would otherwise block forever and hang CI with no diagnostic.
 _SOCKET_TIMEOUT = 300.0
 
 
@@ -54,8 +51,6 @@ class RpcClient:
             use_builtin_types=True,
             transport=_TimeoutTransport(socket_timeout * timeout_scale),
         )
-        # ServerProxy reuses a single HTTP connection, which isn't safe for
-        # concurrent requests (e.g. wait_for polling while another thread emits).
         self._lock = threading.Lock()
 
     @classmethod
@@ -78,7 +73,6 @@ class RpcClient:
                 ) from fault
             raise RpcError(f"{method}() failed inside NVDA: {message}") from fault
         except xmlrpc.client.ProtocolError as error:
-            # Not an OSError, so it would otherwise escape untranslated.
             raise RpcError(
                 f"The spy answered {method!r} with HTTP {error.errcode} "
                 f"{error.errmsg} at {error.url}."

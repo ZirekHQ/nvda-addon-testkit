@@ -20,7 +20,6 @@ _CELL_COUNT = 40
 _INSTALLED = False
 
 
-# Parameter names match extensions.pre_writeCells' keyword call signature.
 def _on_write_cells(cells=None, rawText=None, currentCellCount=None, **kwargs):  # NOSONAR
     with _LOCK:
         _WRITES.append({"text": rawText if rawText is not None else "", "timestamp": time.time()})
@@ -41,10 +40,6 @@ def install():
     try:
         import braille.extensions as extensions
     except ImportError:
-        # `braille` ships as a plain module, not a package with an extensions
-        # submodule, on NVDA builds that predate the braille extension-point
-        # refactor. Braille capture is unavailable there; nothing else in
-        # the spy depends on it, so the rest must still start.
         log.info(
             "nvda-testkit spy: braille extension points unavailable on this NVDA; "
             "braille capture disabled"

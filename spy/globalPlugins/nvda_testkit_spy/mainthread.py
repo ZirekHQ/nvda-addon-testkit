@@ -31,9 +31,6 @@ def run_on_main_thread(fn, timeout=DEFAULT_TIMEOUT):
         except BaseException as error:  # NOSONAR -- forwarded verbatim, see raise below
             outcome["error"] = error
             if timed_out.is_set():
-                # The caller already gave up, so nothing will re-raise this.
-                # The NVDA log is the maintainer's only artefact -- do not
-                # let the real cause vanish behind a bare "timed out".
                 log.exception("nvda-testkit: %r failed after its caller timed out", fn)
         finally:
             finished.set()

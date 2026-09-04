@@ -73,8 +73,6 @@ def test_reset_attempts_every_step_even_if_one_fails(client, monkeypatch):
     with pytest.raises(TestkitError, match="braille"):
         client.reset()
 
-    # These would still show their pre-reset values if a braille failure had
-    # short-circuited the rest of reset() -- that is what this test is for.
     assert client.speech.index() == 0
     assert client.log.index() == 0
     assert client.config.get(("speech", "synth")) == "espeak"
@@ -98,12 +96,8 @@ def test_restart_rebuilds_namespaces_and_preserves_the_pre_restart_baseline(fake
 
         assert client.rpc is not old_rpc
         assert client.process.handshake.pid != old_pid
-        # A namespace call succeeding proves it was rebuilt against the new
-        # port rather than left pointed at the closed one.
         assert client.speech.index() == 0
 
-        # If restart() had re-taken the baseline against the fresh process
-        # (default "espeak"), this would restore "espeak" instead and fail.
         client.reset()
         assert client.config.get(("speech", "synth")) == "custom-baseline"
     finally:

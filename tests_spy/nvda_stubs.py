@@ -157,10 +157,6 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     queue_handler.pumpAll = queue.drain
 
     log_handler = types.ModuleType("logHandler")
-    # A real Logger, not a bare MagicMock: log_tap attaches a logging.Handler
-    # to it and needs records to actually flow. Each level method is then
-    # mock-wrapped in place so existing tests can still assert call counts
-    # and call args, same as they could against the old MagicMock.
     stub_logger = logging.getLogger("nvda_testkit_stub")
     stub_logger.setLevel(logging.DEBUG)
     stub_logger.propagate = False
@@ -170,9 +166,6 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     }
     for level_name, mock in level_mocks.items():
         setattr(stub_logger, level_name, mock)
-    # A real Logger has no reset_mock of its own; cascade to the level mocks
-    # so callers can still reset the whole thing in one call, as they could
-    # against the old bare MagicMock.
     stub_logger.reset_mock = lambda *a, **kw: [
         mock.reset_mock(*a, **kw) for mock in level_mocks.values()
     ]
@@ -316,7 +309,6 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
         def __init__(self, path):
             self.path = path
             self.manifest = {"name": "demo-addon", "version": "1.0.0"}
-            # NVDA records install-task failures here rather than raising them.
             self._installExceptions: list = []
 
     addon_handler.AddonBundle = AddonBundle
@@ -332,7 +324,6 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
             bundle.manifest["name"], bundle.manifest["version"], pending_install=True
         )
         if outcome == "install-task-failure":
-            # NVDA completeRemove()s the add-on again, so it is never available.
             bundle._installExceptions.append(RuntimeError("onInstall exploded"))
             return addon
         addon_handler.INSTALLED.append(addon)

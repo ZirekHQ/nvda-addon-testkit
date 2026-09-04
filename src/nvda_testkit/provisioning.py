@@ -34,8 +34,6 @@ class Provisioned:
         self.keep = keep
 
     def teardown(self) -> None:
-        # rpc.close() must never be able to strand a live NVDA process: if it
-        # raises, process.quit() (and then cleanup) must still run.
         try:
             self.rpc.close()
         finally:
@@ -62,8 +60,6 @@ def provision_fake(settings: TestkitSettings, fake_script: Path) -> Provisioned:
         handshake = process.start(timeout=60)
         rpc = RpcClient.from_handshake(handshake, token=token, timeout_scale=settings.timeout_scale)
     except Exception:
-        # Any failure past this point -- not just the timeout process.start()
-        # already guards -- must not leave the subprocess running.
         process.kill()
         raise
     return Provisioned(process, rpc, workdir, keep=settings.keep_portable)
@@ -79,8 +75,6 @@ def provision(settings: TestkitSettings) -> Provisioned:
     launcher = ensure_launcher(info)
 
     workdir = Path(tempfile.mkdtemp(prefix="nvda-testkit-"))
-    # Resolved here too, not just in NvdaProcess, so log_file below is absolute:
-    # NVDA chdirs into its own directory before it opens either of them.
     out_dir = settings.out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 

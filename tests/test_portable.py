@@ -23,8 +23,6 @@ def test_rendered_ini_disables_everything_that_would_block_or_slow_a_test():
     assert "allowUsageStats = False" in text
     assert "[braille]" in text
     assert "display = noBraille" in text
-    # A missing schemaVersion lets NVDA fill in its own defaults rather than
-    # us guessing a number that goes stale every release.
     assert "schemaVersion" not in text
 
 

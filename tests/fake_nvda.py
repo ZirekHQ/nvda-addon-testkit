@@ -82,11 +82,6 @@ class FakeSpy:
         self._addons_file.write_text(json.dumps(self._addons), encoding="utf-8")
 
     def _dispatch(self, method: str, params: tuple):
-        # Method lookup before auth, matching the real spy's registry.Dispatcher.
-        # The token guards against a stale NVDA from a previous run answering,
-        # not against a local attacker, so leaking which methods exist over a
-        # loopback port costs nothing. Both sides must agree -- do not reorder
-        # one without the other.
         handler = getattr(self, f"rpc_{method}", None)
         if handler is None:
             raise Exception(f"UNKNOWN: no such method {method!r}")
@@ -233,9 +228,6 @@ class FakeSpy:
         return True
 
     def rpc_eval_in_nvda(self, source, timeout=30.0):
-        # Same contract as the real spy's eval_api: full builtins, and anything
-        # xmlrpc cannot carry comes back as its repr. A stricter double here
-        # would pass tests that the real NVDA then fails.
         return _marshallable(eval(source, {"__builtins__": builtins}, {}))
 
     def rpc_addons_install(self, bundle_path, timeout=120.0):
@@ -264,9 +256,6 @@ class FakeSpy:
 
 
 def main() -> int:
-    # Real NVDA runs os.chdir(appDir) at startup (source/nvda.pyw), so the double
-    # must not inherit the host's cwd either: a relative NVDA_TESTKIT_OUTDIR that
-    # only works because both sides share a directory is a bug, not a pass.
     scratch = tempfile.mkdtemp(prefix="fake-nvda-cwd-")
     os.chdir(scratch)
     try:
@@ -302,13 +291,8 @@ def _serve() -> int:
         if delay:
             time.sleep(delay)
         if script.get("bad_handshake"):
-            # Missing "pid": valid JSON, but Handshake.from_payload raises
-            # KeyError on it. Exercises the "malformed payload" leak path.
             payload = {"port": port}
         else:
-            # The handshake file uses "nvdaVersion"; the nvda_version RPC
-            # returns "version". Deliberate -- the real spy maps between
-            # them the same way.
             payload = {
                 "port": port,
                 "pid": os.getpid(),
@@ -316,7 +300,6 @@ def _serve() -> int:
                 "apiVersion": script.get("api_version", "2026.1.1"),
                 "apiCompatTo": script.get("api_compat_to", "2026.1.0"),
             }
-        # Write-then-rename, so a poller never reads a half-written file.
         directory = Path(out_dir)
         directory.mkdir(parents=True, exist_ok=True)
         temporary = directory / (HANDSHAKE_FILENAME + ".part")

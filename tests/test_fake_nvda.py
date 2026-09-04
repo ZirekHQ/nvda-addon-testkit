@@ -48,7 +48,6 @@ def spawned(tmp_path):
 
     yield spawn
     for proc in processes:
-        # Isolated per process: one hung wait() must not strand the rest.
         with contextlib.suppress(Exception):
             proc.kill()
             proc.wait(timeout=10)
@@ -70,8 +69,6 @@ def test_rejects_a_wrong_token(spawned, tmp_path):
     proxy = xmlrpc.client.ServerProxy(f"http://127.0.0.1:{handshake['port']}", allow_none=True)
     with pytest.raises(xmlrpc.client.Fault) as excinfo:
         proxy.ping("wrong-token")
-    # SimpleXMLRPCServer prefixes faultString with the exception type, so the
-    # marker is embedded rather than leading. RpcClient matches the same way.
     assert "AUTH:" in excinfo.value.faultString
 
 
@@ -144,8 +141,6 @@ def test_version_override_knobs_affect_handshake_and_rpc(spawned, tmp_path):
 
     proxy = xmlrpc.client.ServerProxy(f"http://127.0.0.1:{handshake['port']}", allow_none=True)
     version = proxy.nvda_version("tok")
-    # The handshake file uses "nvdaVersion"; the nvda_version RPC returns
-    # "version". Deliberate -- the real spy maps between them the same way.
     assert version["version"] == "2099.1"
     assert version["apiVersion"] == "2099.1"
     assert version["apiCompatTo"] == "2098.1"

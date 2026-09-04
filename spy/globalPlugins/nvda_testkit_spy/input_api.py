@@ -15,7 +15,6 @@ from .registry import rpc_method
 _LOCK = threading.RLock()
 _SENT = []
 
-#: Characters that have a gesture name rather than being their own name.
 _NAMED_CHARACTERS = {
     " ": "space",
     "\t": "tab",
@@ -36,8 +35,6 @@ def _emulate(gesture_name):
     try:
         inputCore.manager.emulateGesture(gesture)
     except Exception as error:
-        # NoInputGestureAction means nothing is bound to it. That is a legitimate
-        # outcome of pressing a key, not a failure to press it.
         if type(error).__name__ != "NoInputGestureAction":
             raise
 

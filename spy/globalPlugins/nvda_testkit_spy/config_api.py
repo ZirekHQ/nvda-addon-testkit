@@ -44,8 +44,6 @@ def _assign(path, value):
 
     node = config.conf
     for key in path[:-1]:
-        # An AggregatedSection is not a dict, so an isinstance(..., dict) test
-        # here would overwrite a whole live section with {} on the way past it.
         if key not in node or not _is_section(node[key]):
             node[key] = {}
         node = node[key]
@@ -60,8 +58,6 @@ def config_set(path, value):
 
 def _plain(node):
     """Deep-copy NVDA's config objects into ordinary dicts, so they survive the wire."""
-    # config.conf is a ConfigManager and its sections are AggregatedSections;
-    # neither is a dict and xmlrpc can marshal neither, but both expose dict().
     if hasattr(node, "dict"):
         node = node.dict()
     if hasattr(node, "items"):
@@ -70,10 +66,6 @@ def _plain(node):
         return [_plain(item) for item in node]
     if isinstance(node, (str, int, float, bool, bytes, type(None))):
         return node
-    # A handful of real config leaves (e.g. config.featureFlag entries) come
-    # back as an unresolved `property` descriptor even after .dict() above;
-    # xmlrpc cannot marshal that. Stringify rather than let one odd leaf take
-    # the whole snapshot down.
     return str(node)
 
 
@@ -91,8 +83,6 @@ def config_snapshot():
 def _restore(snapshot):
     import config
 
-    # ConfigManager offers no clear(), no update() and no delete: a top-level key
-    # a test invented can only be emptied here, never removed.
     live = config.conf.dict()
     for key, value in copy.deepcopy(snapshot).items():
         config.conf[key] = value

@@ -12,11 +12,11 @@ import os
 import globalPluginHandler
 from logHandler import log
 
-from . import addons_api as addons_api  # re-export: the import alone registers its rpc_method's
+from . import addons_api as addons_api
 from . import braille_tap, log_tap, speech_tap
-from . import config_api as config_api  # re-export: the import alone registers its rpc_method's
-from . import eval_api as eval_api  # re-export: the import alone registers its rpc_method's
-from . import input_api as input_api  # re-export: the import alone registers its rpc_method's
+from . import config_api as config_api
+from . import eval_api as eval_api
+from . import input_api as input_api
 from .server import SpyServer
 
 
@@ -38,20 +38,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             self._server = SpyServer(token, out_dir)
             self._server.start()
         except Exception:
-            # Log and stay up. A dead spy makes the host time out on the
-            # handshake with a clear message; a raising GlobalPlugin
-            # constructor takes NVDA's whole add-on load down with it.
             log.exception("nvda-testkit spy failed to start")
-            # start() may have already bound a socket and spawned its thread
-            # before failing. Dropping the reference without stopping it leaks
-            # both for the life of the NVDA process.
             if self._server is not None:
                 with contextlib.suppress(Exception):
                     self._server.stop()
             self._server = None
-            # install() may have succeeded before SpyServer failed. Left
-            # registered, a tap keeps capturing forever with no RPC server
-            # alive to ever call its clear().
             with contextlib.suppress(Exception):
                 log_tap.uninstall()
             with contextlib.suppress(Exception):

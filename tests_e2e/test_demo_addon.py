@@ -28,8 +28,6 @@ def test_install_is_two_phase_and_completes_on_restart(
 
     nvda.restart()
     assert nvda.addons.state("testkit-demo") is AddonState.ENABLED
-    # Completing the install runs installTasks.onInstall during startup, so this
-    # has to cover the whole restart -- allowlisted, not scoped past it.
     assert_no_unexpected_errors(nvda)
 
     nvda.addons.remove("testkit-demo")
@@ -38,11 +36,6 @@ def test_install_is_two_phase_and_completes_on_restart(
 
 
 def test_the_installed_addon_logs_at_startup(nvda, addon_under_test):
-    # The nvda fixture's reset() clears the log, so restart here and read the
-    # fresh process's startup output before anything else can clear it. The
-    # add-on logs on postNvdaStartup, which fires after the RPC handshake
-    # restart() already waited for, so the message may not be there yet the
-    # instant restart() returns -- wait_for it rather than reading once.
     nvda.restart()
     nvda.log.wait_for(re.escape(STARTUP_MESSAGE), since=0, timeout=20)
 

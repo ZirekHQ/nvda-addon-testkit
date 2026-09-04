@@ -14,12 +14,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 collect_ignore_glob = [] if sys.platform == "win32" else ["test_*.py"]
 
-#: A full --log-level=DEBUG NVDA startup on a GitHub windows runner has no audio
-#: endpoint, no braille display and no interactive desktop, so NVDA logs ERROR
-#: while initialising those. Those errors are the runner, not the add-on under
-#: test, and asserting on them would make the first red CI run a false alarm.
-#: Expect to tune this list after that first run: every allowlisted record is
-#: reported as a warning, and the failure message quotes them all either way.
 RUNNER_ENVIRONMENT_ERRORS = (
     r"nvwave|WASAPI|audio (?:device|output|session|endpoint)",
     r"synthDriver|synthesi[sz]|espeak|oneCore|SAPI",

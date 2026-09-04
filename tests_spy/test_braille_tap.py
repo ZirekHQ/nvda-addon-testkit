@@ -44,8 +44,6 @@ def test_the_cell_count_is_forced_so_tests_do_not_depend_on_the_display(tap):
     from braille.display import DisplayDimensions
 
     tap.braille_set_cell_count(80)
-    # numRows deliberately not 1: an implementation that preserved the input's
-    # numRows instead of forcing it would pass against DisplayDimensions(1, 20).
     dimensions = extensions.filter_displayDimensions.apply(DisplayDimensions(2, 20))
     assert dimensions.numCols == 80
     assert dimensions.numRows == 1

@@ -45,9 +45,6 @@ class SpeechSequence:
 
     @property
     def text(self) -> str:
-        # Space-join then collapse. NVDA emits both ["Install", "button"] and
-        # ["Install", " ", "button"]; a plain " ".join doubles the space in the
-        # second shape and breaks the regex a test author would naturally write.
         joined = " ".join(item.text for item in self.items if item.kind == "text" and item.text)
         return re.sub(r"\s+", " ", joined).strip()
 

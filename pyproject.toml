@@ -40,10 +40,6 @@ source = "vcs"
 version-file = "src/nvda_testkit/_version.py"
 
 [tool.hatch.build]
-# Top-level, not just under targets.wheel: python -m build's wheel step
-# builds from the sdist, not the working tree, so the sdist needs this too --
-# without it the gitignored bundle never survives into the sdist for the
-# wheel step to find, regardless of what targets.wheel declares.
 artifacts = ["src/nvda_testkit/_spy/*.nvda-addon"]
 
 [tool.hatch.build.targets.wheel]
@@ -56,14 +52,9 @@ markers = [
     "windows_only: requires a real Windows host",
     "fresh_nvda: restart NVDA before this test",
 ]
-# Production names TestkitError / TestkitSettings match pytest's default Test*
-# glob; narrow it so they are not collection candidates. Class-based tests must
-# therefore be named *Tests.
 python_classes = ["*Tests"]
 
 [tool.coverage.run]
 source = ["src/nvda_testkit"]
-# Lets `coverage combine` merge the ubuntu and windows legs' data files
-# despite their divergent path separators.
 relative_files = true
 omit = ["src/nvda_testkit/_spy/*"]

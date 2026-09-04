@@ -16,8 +16,6 @@ from typing import Any
 
 from .errors import ProvisionError, UnsupportedPlatformError
 
-#: Settings applied to every portable copy the kit creates. Each one removes
-#: something that would either block a headless run or add wall-clock time.
 DEFAULT_CONFIG: dict[str, Any] = {
     "general": {
         "showWelcomeDialogAtStartup": False,
@@ -29,8 +27,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "autoCheck": False,
         "startupNotification": False,
         "allowUsageStats": False,
-        # NVDA only skips AskAllowUsageStatsDialog once this is set; setting
-        # allowUsageStats alone still shows the blocking first-run prompt.
         "askedAllowUsageStats": True,
     },
     "braille": {

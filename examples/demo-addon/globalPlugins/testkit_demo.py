@@ -17,11 +17,6 @@ SPOKEN_PHRASE = "testkit demo says hello"
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Sibling add-ons' global plugins load in filesystem-listing order,
-        # which NVDA does not guarantee -- logging here directly would race
-        # whatever else is watching the log this early. postNvdaStartup fires
-        # once every global plugin (including the spy watching this log) has
-        # finished loading.
         postNvdaStartup.register(self._logStartup)
 
     def _logStartup(self):
@@ -30,4 +25,5 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
     def script_sayHello(self, gesture):
         ui.message(SPOKEN_PHRASE)
 
-    __gestures: ClassVar[dict[str, str]] = {"kb:NVDA+shift+control+d": "sayHello"}
+    # Read by NVDA's ScriptableObject via mangled-name getattr, not a direct reference.
+    __gestures: ClassVar[dict[str, str]] = {"kb:NVDA+shift+control+d": "sayHello"}  # NOSONAR(S4487)
