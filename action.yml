@@ -13,15 +13,19 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
       with:
         python-version: ${{ inputs.python-version }}
     - shell: bash
-      run: pip install "nvda-addon-testkit${{ inputs.testkit-version }}"
-    - uses: actions/cache@v4
+      env:
+        TESTKIT_VERSION: ${{ inputs.testkit-version }}
+      run: pip install "nvda-addon-testkit${TESTKIT_VERSION}"
+    - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: ~/.cache/nvda-testkit
         key: nvda-launcher-${{ inputs.nvda-channel }}-${{ github.run_id }}
         restore-keys: nvda-launcher-${{ inputs.nvda-channel }}-
     - shell: bash
-      run: nvda-testkit provision --channel "${{ inputs.nvda-channel }}"
+      env:
+        NVDA_CHANNEL: ${{ inputs.nvda-channel }}
+      run: nvda-testkit provision --channel "$NVDA_CHANNEL"

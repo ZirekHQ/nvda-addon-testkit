@@ -25,11 +25,15 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          # Pinned to the actual PR head, not actions/checkout's default
+          # ephemeral merge commit -- matches sonar-fork-coverage.yml, so the
+          # scanner analyzes the same revision on same-repo and fork PRs alike.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13"
 
@@ -46,7 +50,7 @@ jobs:
         # def/class line in them as uncovered.
         run: coverage run -m pytest -v
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: windows-coverage-data
           path: .coverage.windows.*
@@ -59,6 +63,8 @@ jobs:
     needs: ["windows_coverage"]
     permissions:
       contents: read
+      code-quality: write # required for actions/upload-code-coverage
+      pull-requests: read # required for actions/upload-code-coverage to resolve the PR on push-triggered runs
     # Fork PRs are never given repository secrets, so SONAR_TOKEN would be
     # empty and the scan would fail with a red X the contributor can't clear.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -66,12 +72,14 @@ jobs:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          # Same reasoning as the windows_coverage job above.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0 # Sonar needs full history for new-code detection and blame
           persist-credentials: false
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13"
 
@@ -84,7 +92,7 @@ jobs:
       # After the run above, never before: `coverage run` erases any
       # .coverage.* data files already sitting in the workspace.
       - name: Download the Windows leg's coverage
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: windows-coverage-data
 
@@ -92,6 +100,13 @@ jobs:
         run: |
           python -m coverage combine --append
           python -m coverage xml
+
+      - name: Upload coverage to GitHub Code Quality
+        uses: actions/upload-code-coverage@1c15be36fc3733ba839b1dd643bd9556e4426dc1 # v1
+        with:
+          file: coverage.xml
+          language: Python
+          label: code-coverage/pytest
 
       - name: SonarQube scan
         if: env.SONAR_TOKEN != ''
