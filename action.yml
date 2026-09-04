@@ -13,12 +13,12 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
       with:
         python-version: ${{ inputs.python-version }}
     - shell: bash
       run: pip install "nvda-addon-testkit${{ inputs.testkit-version }}"
-    - uses: actions/cache@v4
+    - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: ~/.cache/nvda-testkit
         key: nvda-launcher-${{ inputs.nvda-channel }}-${{ github.run_id }}
