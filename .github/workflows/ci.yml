@@ -23,6 +23,19 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
 
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: 'pip install --only-binary :all: -e ".[dev]"'
+      - run: 'pip install --only-binary :all: pip-audit'
+      - run: pip-audit
+
   unit:
     runs-on: ${{ matrix.os }}
     strategy:

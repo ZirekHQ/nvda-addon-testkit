@@ -1,0 +1,37 @@
+name: Mark stale issues
+
+on:
+  schedule:
+    # Daily at 06:00 UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/stale@5bef64f19d7facfb25b37b414482c7164d639639 # v9.1.0
+        with:
+          # Unlike dengjen-nvda, no `needs-reproducer` triage label exists
+          # here -- the bug report template already collects repro steps
+          # up front -- so this applies to all issues rather than a subset.
+          days-before-issue-stale: 30
+          days-before-issue-close: 14
+          # PRs are not subject to this workflow.
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          stale-issue-label: stale
+          remove-stale-when-updated: true
+          close-issue-reason: not_planned
+          stale-issue-message: |
+            This issue has had no activity for 30 days, so it's been marked as `stale`.
+
+            If this is still relevant, please reply with an update -- e.g. whether it still reproduces on the latest [release](https://github.com/ZirekHQ/nvda-addon-testkit/releases/latest) -- and the `stale` label will be removed.
+
+            Otherwise this issue will close in 14 days. Closing isn't a verdict -- it just means there's been no recent signal to act on.
+          close-issue-message: |
+            Closing as stale -- no activity in 44 days.
+
+            If this is still an issue, please open a fresh one using the [bug report template](https://github.com/ZirekHQ/nvda-addon-testkit/issues/new/choose). Thanks for the original report regardless.
