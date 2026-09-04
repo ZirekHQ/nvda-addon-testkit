@@ -65,8 +65,26 @@ jobs:
       && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
     name: Acknowledge
     runs-on: ubuntu-latest
-    permissions: {}
+    permissions:
+      pull-requests: read # needed to tell whether the PR is actually a fork
+    outputs:
+      is_cross_repository: ${{ steps.pr.outputs.is_cross_repository }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_NUMBER: ${{ github.event.issue.number }}
     steps:
+      # sonar-fork-coverage.yml only builds its workspace artifact for actual
+      # fork PRs -- same-repo PRs are already scanned by sonar.yml -- so a
+      # /sonar comment on a same-repo PR must skip `scan` rather than fail on
+      # a missing artifact.
+      - name: Resolve whether the PR is a fork
+        id: pr
+        run: |
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --json isCrossRepository \
+            --jq '"is_cross_repository=\(.isCrossRepository)"' \
+            >> "$GITHUB_OUTPUT"
+
       - name: Log the trusted trigger
         env:
           COMMENT_USER: ${{ github.event.comment.user.login }}
@@ -76,6 +94,7 @@ jobs:
   scan:
     name: Sonar fork scan
     needs: acknowledge
+    if: needs.acknowledge.outputs.is_cross_repository == 'true'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read # needed by `gh pr view` to resolve the PR's current head
@@ -99,8 +118,8 @@ jobs:
         env:
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
         run: |
-          RUN_ID=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/sonar-fork-coverage.yml/runs?event=pull_request&status=success&per_page=20" \
-            --jq "[.workflow_runs[] | select(.head_sha == \"$HEAD_SHA\")][0].id")
+          RUN_ID=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/sonar-fork-coverage.yml/runs?event=pull_request&status=success&head_sha=$HEAD_SHA&per_page=1" \
+            --jq '.workflow_runs[0].id')
           if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
             echo "::error::No successful 'Sonar fork coverage' run found for $HEAD_SHA. Push a commit or re-run that workflow first."
             exit 1
@@ -134,9 +153,17 @@ jobs:
         if: env.SONAR_TOKEN != ''
         uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
         with:
+          # The archive's sonar-project.properties came from the fork, so the
+          # project identity and scan scope are pinned here explicitly --
+          # command-line -D args override the file -- rather than trusted from it.
           args: >
             -Dsonar.projectBaseDir=workspace
             -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.projectKey=ZirekHQ_nvda-addon-testkit
+            -Dsonar.organization=zirekhq
+            -Dsonar.sources=src/nvda_testkit,tools
+            -Dsonar.tests=tests,tests_spy,tests_e2e
+            -Dsonar.exclusions=src/nvda_testkit/_spy/**,tests/fixtures/**
             -Dsonar.pullrequest.key=${{ env.PR_NUMBER }}
             -Dsonar.pullrequest.branch=${{ steps.pr.outputs.head_ref }}
             -Dsonar.pullrequest.base=main
