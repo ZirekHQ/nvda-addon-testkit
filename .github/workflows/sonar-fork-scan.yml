@@ -141,6 +141,15 @@ jobs:
           mkdir -p workspace
           tar -xzf "$ARCHIVE_DIR/workspace.tar.gz" -C workspace
 
+      # The extracted sonar-project.properties came from the fork. -D args
+      # below override its *duplicate* keys, but it could still set things
+      # this workflow never pins -- sonar.inclusions, coverage/issue-ignore
+      # rules, etc -- to hide code, coverage or findings from the quality
+      # gate. Removing it outright is simpler than trying to out-pin every
+      # key it might set.
+      - name: Remove the fork-controlled Sonar config
+        run: rm -f workspace/sonar-project.properties
+
       # SonarCloud's GitHub integration normally posts the
       # "SonarCloud Code Analysis" status itself, but it attaches to whatever
       # commit the Actions *run* is associated with -- main's tip, since this
@@ -164,6 +173,9 @@ jobs:
             -Dsonar.sources=src/nvda_testkit,tools
             -Dsonar.tests=tests,tests_spy,tests_e2e
             -Dsonar.exclusions=src/nvda_testkit/_spy/**,tests/fixtures/**
+            -Dsonar.python.version=3.13
+            -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.sourceEncoding=UTF-8
             -Dsonar.pullrequest.key=${{ env.PR_NUMBER }}
             -Dsonar.pullrequest.branch=${{ steps.pr.outputs.head_ref }}
             -Dsonar.pullrequest.base=main
