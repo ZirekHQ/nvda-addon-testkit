@@ -60,6 +60,7 @@ jobs:
     permissions:
       contents: read
       code-quality: write # required for actions/upload-code-coverage
+      pull-requests: read # required for actions/upload-code-coverage to resolve the PR on push-triggered runs
     # Fork PRs are never given repository secrets, so SONAR_TOKEN would be
     # empty and the scan would fail with a red X the contributor can't clear.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -99,6 +100,7 @@ jobs:
         with:
           file: coverage.xml
           language: Python
+          label: code-coverage/pytest
 
       - name: SonarQube scan
         if: env.SONAR_TOKEN != ''
