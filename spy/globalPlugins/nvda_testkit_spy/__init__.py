@@ -12,11 +12,11 @@ import os
 import globalPluginHandler
 from logHandler import log
 
-from . import addons_api as addons_api  
+from . import addons_api as addons_api
 from . import braille_tap, log_tap, speech_tap
-from . import config_api as config_api  
-from . import eval_api as eval_api  
-from . import input_api as input_api  
+from . import config_api as config_api
+from . import eval_api as eval_api
+from . import input_api as input_api
 from .server import SpyServer
 
 

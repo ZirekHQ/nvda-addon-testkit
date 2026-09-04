@@ -21,6 +21,7 @@ _SEQUENCES = []
 _CANCELLATIONS = 0
 _INSTALLED = False
 
+
 def _on_speech_queued(speechSequence=None, **kwargs):  # NOSONAR
     if not speechSequence:
         return

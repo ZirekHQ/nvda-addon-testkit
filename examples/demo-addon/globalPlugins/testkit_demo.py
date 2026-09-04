@@ -25,4 +25,5 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
     def script_sayHello(self, gesture):
         ui.message(SPOKEN_PHRASE)
 
-    __gestures: ClassVar[dict[str, str]] = {"kb:NVDA+shift+control+d": "sayHello"}  # NOSONAR(S4487) read by NVDA's ScriptableObject via mangled-name getattr
+    # Read by NVDA's ScriptableObject via mangled-name getattr, not a direct reference.
+    __gestures: ClassVar[dict[str, str]] = {"kb:NVDA+shift+control+d": "sayHello"}  # NOSONAR(S4487)

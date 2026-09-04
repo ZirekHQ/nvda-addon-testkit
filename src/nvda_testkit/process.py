@@ -230,7 +230,7 @@ class NvdaProcess:
             proxy = xmlrpc.client.ServerProxy(
                 f"http://127.0.0.1:{self._handshake.port}", allow_none=True
             )
-            with contextlib.suppress(Exception):  
+            with contextlib.suppress(Exception):
                 proxy.quit(self.token)
             return
         with contextlib.suppress(OSError, subprocess.TimeoutExpired):

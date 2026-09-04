@@ -112,7 +112,7 @@ def test_restart_yields_a_fresh_handshake(process):
 def test_timeout_scale_stretches_deadlines(process, fake_nvda):
     fake_nvda.script(handshake_delay=1.5)
     proc = process(timeout_scale=10.0)
-    handshake = proc.start(timeout=0.5)  
+    handshake = proc.start(timeout=0.5)
     assert handshake.port > 0
 
 
