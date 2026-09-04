@@ -220,9 +220,6 @@ def test_addon_bundle_returns_the_single_match(pytester):
 
 
 def test_reset_failure_during_teardown_warns_instead_of_failing(harness):
-    # nvda_reset is autouse and runs after every test; making the *second*
-    # reset() (its teardown call, not the `nvda` fixture's setup call) raise
-    # is what exercises the warning branch instead of just failing the test.
     harness.makeconftest(
         """
         from nvda_testkit.client import NvdaClient
@@ -273,11 +270,6 @@ def test_addon_under_test_installs_and_restarts_to_complete_it(harness):
 
 
 def test_a_test_that_does_not_ask_for_nvda_never_starts_it(harness):
-    # Patched on `plugin`, not `provisioning`: plugin.py imports the name
-    # directly (`from .provisioning import ... provision_fake`), so it is
-    # bound in plugin's own module globals by the time this conftest runs.
-    # Patching `provisioning.provision_fake` would leave that binding alone
-    # and the spy would never be called.
     harness.makeconftest(
         """
         import pathlib

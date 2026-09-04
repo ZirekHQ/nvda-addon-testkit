@@ -21,7 +21,7 @@ class _CapturingHandler(logging.Handler):
     def emit(self, record):
         try:
             message = self.format(record)
-        except Exception:  # a broken formatter must not kill logging
+        except Exception:  
             message = str(record.msg)
         with _LOCK:
             _RECORDS.append(

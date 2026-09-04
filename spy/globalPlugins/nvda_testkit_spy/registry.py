@@ -39,8 +39,6 @@ class Dispatcher:
         try:
             return handler(*params[1:])
         except Exception as error:
-            # Carry the traceback across the wire: the host cannot attach a
-            # debugger to NVDA, so this string is all the evidence there is.
             raise RuntimeError(
                 "%s: %s\n%s" % (type(error).__name__, error, traceback.format_exc())
             ) from error

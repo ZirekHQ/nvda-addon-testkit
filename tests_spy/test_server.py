@@ -47,7 +47,6 @@ def test_the_handshake_is_never_visible_half_written(tmp_path, event_queue):
     server = SpyServer("tok", tmp_path)
     server.start()
     try:
-        # A .part file must not survive; the rename is the publication step.
         assert not (tmp_path / (HANDSHAKE_FILENAME + ".part")).exists()
         json.loads((tmp_path / HANDSHAKE_FILENAME).read_text())
     finally:

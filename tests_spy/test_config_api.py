@@ -10,7 +10,6 @@ def api(event_queue):
     import config
     from nvda_testkit_spy import config_api
 
-    # Rebuilt rather than cleared: a real config.conf has no clear() or update().
     config.conf = nvda_stubs.FakeConfigManager(nvda_stubs.DEFAULT_CONFIG)
     return config_api
 
@@ -74,8 +73,6 @@ def test_snapshot_and_restore_round_trip(api):
     api.config_set(["brand", "new"], 1)
     api.config_restore(snapshot)
     assert config.conf["speech"]["synth"] == "espeak"
-    # The key itself survives: ConfigManager exposes no way to delete one. What
-    # restore can guarantee, and does, is that nothing is left inside it.
     assert config.conf["brand"].dict() == {}
 
 

@@ -56,9 +56,6 @@ def test_a_partial_start_failure_stops_the_partially_started_server(
         real_stop(self)
 
     def fake_start(self):
-        # Mirrors what the real start() does before it could fail: bind a
-        # real socket and spawn the serving thread, then blow up before the
-        # handshake is written.
         self._server = server_module.SimpleXMLRPCServer(
             ("127.0.0.1", 0), allow_none=True, logRequests=False
         )
@@ -191,8 +188,6 @@ def test_terminate_removes_the_other_tap_even_if_one_uninstall_raises(
         real_braille_uninstall()
 
     def fake_start(self):
-        # This test only cares about tap-uninstall ordering, not the server;
-        # stubbing start() avoids binding a real socket like its siblings do.
         pass
 
     monkeypatch.setattr(server_module.SpyServer, "start", fake_start)

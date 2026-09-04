@@ -48,7 +48,6 @@ def test_resolves_alpha_by_scraping_the_snapshot_index():
     assert info.channel == "alpha"
     assert info.url.startswith("https://download.nvaccess.org/snapshots/alpha/nvda_snapshot_alpha-")
     assert info.url.endswith(".exe")
-    # Alpha publishes no digest; the caller must not treat None as "verified".
     assert info.sha1 is None
     assert info.api_version is None
 

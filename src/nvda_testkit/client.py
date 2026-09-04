@@ -36,8 +36,6 @@ class NvdaClient:
         self._rpc = rpc
         self._settings = settings or TestkitSettings()
         self._attach(rpc)
-        # Taken once, at connect time, and reused by every reset(). Capturing it
-        # per-test would bake in whatever the previous test left behind.
         self._baseline_config = self.config.snapshot()
 
     def _attach(self, rpc: RpcClient) -> None:
@@ -74,8 +72,6 @@ class NvdaClient:
 
     def reset(self) -> None:
         """Return NVDA to the state a test should start from."""
-        # Attempt every step even if one fails, then report. A partial reset is
-        # worse than a failed one: it is inherited silently by the next test.
         failures = []
         for label, step in (
             ("speech", self.speech.clear),

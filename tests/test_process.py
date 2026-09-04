@@ -90,8 +90,6 @@ def test_quit_stops_the_process(process):
     proc.quit(timeout=20)
     elapsed = time.monotonic() - started
     assert not proc.is_running
-    # Bounded so a silently broken RPC quit cannot pass by falling through to
-    # the 20s deadline and killing instead. Cooperative quit takes well under 1s.
     assert elapsed < 10, f"quit took {elapsed:.1f}s, so it likely fell back to kill()"
 
 
@@ -114,7 +112,7 @@ def test_restart_yields_a_fresh_handshake(process):
 def test_timeout_scale_stretches_deadlines(process, fake_nvda):
     fake_nvda.script(handshake_delay=1.5)
     proc = process(timeout_scale=10.0)
-    handshake = proc.start(timeout=0.5)  # 0.5 * 10 = 5s, enough for a 1.5s delay
+    handshake = proc.start(timeout=0.5)  
     assert handshake.port > 0
 
 

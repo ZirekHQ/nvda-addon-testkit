@@ -55,10 +55,6 @@ def nvda_argv(
     portable: PortableNvda,
     log_file: Path,
     *,
-    # NVDA's --log-level takes one of the stdlib logging levels as an int
-    # (10/20/30/40/50), not a level name: a name fails argparse's type=int
-    # conversion and NVDA pops a blocking "Command-line Argument Error"
-    # dialog instead of exiting, hanging every real-NVDA test indefinitely.
     log_level: int = logging.DEBUG,
     minimal: bool = False,
     extra: Iterable[str] = (),
@@ -68,8 +64,6 @@ def nvda_argv(
         f"--log-file={log_file}",
         f"--log-level={log_level}",
         f"--config-path={portable.user_config}",
-        # Leave the system screen-reader flag alone: the runner may be shared,
-        # and flipping it has effects that outlive the test session.
         "--no-sr-flag",
     ]
     if minimal:
@@ -93,8 +87,6 @@ class NvdaProcess:
         timeout_scale: float = 1.0,
     ) -> None:
         self.argv = list(argv)
-        # NVDA runs os.chdir(appDir) at startup (source/nvda.pyw), so a relative
-        # NVDA_TESTKIT_OUTDIR would resolve against the portable copy, not us.
         self.out_dir = Path(out_dir).resolve()
         self.token = token or new_token()
         self._log_file_base = Path(log_file).resolve() if log_file else None
@@ -238,11 +230,9 @@ class NvdaProcess:
             proxy = xmlrpc.client.ServerProxy(
                 f"http://127.0.0.1:{self._handshake.port}", allow_none=True
             )
-            with contextlib.suppress(Exception):  # any failure here just falls through to kill
+            with contextlib.suppress(Exception):  
                 proxy.quit(self.token)
             return
-        # Both branches must fall through to kill(). A --quit that itself
-        # hangs is exactly the case that guarantee exists for.
         with contextlib.suppress(OSError, subprocess.TimeoutExpired):
             subprocess.run(
                 [self.argv[0], "--quit"],
@@ -266,8 +256,6 @@ class NvdaProcess:
                 self._proc = None
                 return
             time.sleep(_POLL_INTERVAL)
-        # An NVDA that will not leave is still an NVDA holding the desktop
-        # session hostage for every later test. Kill it.
         self.kill()
 
     def kill(self) -> None:
@@ -275,8 +263,6 @@ class NvdaProcess:
             return
         if self._proc.poll() is None:
             self._proc.kill()
-            # kill() is called from except-handlers; a reap that times out here
-            # would replace the original failure (and its log tail) with itself.
             with contextlib.suppress(subprocess.TimeoutExpired):
                 self._proc.wait(timeout=30)
         self._proc = None

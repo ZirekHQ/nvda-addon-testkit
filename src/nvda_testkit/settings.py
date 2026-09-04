@@ -60,7 +60,6 @@ def load_settings(
             if field:
                 values[field] = _coerce(field, value)
 
-    # A None override means "not specified on the command line", not "clear it".
     for field, value in (overrides or {}).items():
         if value is not None:
             values[field] = _coerce(field, value)

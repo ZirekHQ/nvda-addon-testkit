@@ -12,8 +12,6 @@ from .registry import rpc_method
 
 
 def _state_of(addon):
-    # INCOMPATIBLE has no branch here and is unreachable: incompatibility
-    # reporting is Phase 6, not this slice.
     if addon.isPendingRemove:
         return "PENDING_REMOVE"
     if addon.isPendingInstall:
@@ -48,9 +46,6 @@ def _list():
 
 @rpc_method
 def addons_list(timeout=10.0):
-    # refresh=True rescans and rebuilds addonHandler's internal list, which is
-    # closer to a mutation than a read; racing it against installAddonBundle
-    # or requestRemove on the main thread would be a Windows-only flake.
     return run_on_main_thread(_list, timeout=timeout)
 
 
@@ -79,8 +74,6 @@ def _install(bundle_path):
             "NVDA could not extract the add-on bundle %s. Errors: %s"
             % (bundle_path, _install_errors(bundle))
         )
-    # installAddonBundle returns the Addon even when installTasks.onInstall raised,
-    # having quietly removed it again; only _installExceptions records that.
     if getattr(bundle, "_installExceptions", None):
         raise RuntimeError(
             "Add-on %s extracted, but installTasks.onInstall failed and NVDA removed it "

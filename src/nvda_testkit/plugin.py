@@ -36,8 +36,6 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "fresh_nvda: restart NVDA before this test")
 
-    # Only one NVDA can own a desktop session, so parallel workers would fight
-    # over it and produce results that mean nothing.
     workers = getattr(config.option, "numprocesses", None)
     if isinstance(workers, int) and workers > 1:
         raise pytest.UsageError(
@@ -99,9 +97,6 @@ def nvda_reset(request: pytest.FixtureRequest):
     try:
         client.reset()
     except Exception as error:
-        # Non-fatal here -- the next test's `nvda` fixture calls reset() again
-        # and will surface a persistent failure -- but never silent: if this
-        # is the last test in the session, a warning is the only channel left.
         warnings.warn(
             f"nvda-testkit: reset() failed during teardown: {error}",
             stacklevel=2,

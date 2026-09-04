@@ -73,7 +73,6 @@ def test_unverifiable_channels_still_cache_and_record_their_digest(tmp_path):
     assert path.exists()
     digest_note = path.with_suffix(".sha1")
     assert digest_note.read_text().strip() == PAYLOAD_SHA1
-    # No published digest means no cache-validity check, so a second call re-uses it.
     ensure_launcher(info, tmp_path, fetch=fetch)
     assert len(fetch.calls) == 1
 

@@ -21,7 +21,6 @@ def test_the_callable_runs_via_the_event_queue_not_inline(event_queue):
 
     thread = threading.Thread(target=worker)
     thread.start()
-    # Nothing has run yet: the queue has not been drained.
     thread.join(timeout=0.3)
     assert calls == []
     event_queue.drain()

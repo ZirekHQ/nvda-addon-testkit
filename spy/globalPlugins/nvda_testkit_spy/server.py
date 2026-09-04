@@ -17,7 +17,6 @@ from logHandler import log
 from .mainthread import run_on_main_thread
 from .registry import Dispatcher, rpc_method
 
-#: Wire contract with nvda_testkit.process.HANDSHAKE_FILENAME. Keep in step.
 HANDSHAKE_FILENAME = "testkit-handshake.json"
 
 

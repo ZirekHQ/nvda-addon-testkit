@@ -66,8 +66,5 @@ def ensure_launcher(
 
     os.replace(partial, target)
     if info.sha1 is None:
-        # Nothing to check against, so record what we actually got. This ends up
-        # in the artifact bundle, which is the only way to tell after the fact
-        # which alpha build a failure came from.
         target.with_suffix(".sha1").write_text(actual + "\n", encoding="ascii")
     return target
