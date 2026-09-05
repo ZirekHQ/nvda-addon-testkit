@@ -15,7 +15,9 @@ def test_my_addon_announces_itself(nvda, addon_under_test, assert_no_unexpected_
     assert_no_unexpected_errors(nvda)
 ----
 
-== What you get
+See xref:example-project.adoc[] for this same pattern applied to a real, working add-on.
+
+== Core concepts
 
 [cols="1,3"]
 |===
@@ -31,26 +33,29 @@ def test_my_addon_announces_itself(nvda, addon_under_test, assert_no_unexpected_
 |that bundle, installed and enabled, NVDA restarted
 |===
 
+Every fixture and namespace has its own page under *Guide*, most with a real, tested code sample
+pulled straight from this kit's own test suite:
+
 [cols="1,3"]
 |===
 |Namespace |Use it for
 
-|`nvda.speech`
+|xref:guide/speech.adoc[`nvda.speech`]
 |what NVDA asked to say, and waiting for it
 
-|`nvda.braille`
+|xref:guide/braille.adoc[`nvda.braille`]
 |the raw text sent to the braille display
 
-|`nvda.keys`
+|xref:guide/keys.adoc[`nvda.keys`]
 |sending gestures through NVDA's own input pipeline
 
-|`nvda.config`
+|xref:guide/config.adoc[`nvda.config`]
 |reading and writing NVDA's configuration
 
-|`nvda.log`
+|xref:guide/log.adoc[`nvda.log`]
 |structured log records, and `assert_no_errors()`
 
-|`nvda.addons`
+|xref:guide/addons.adoc[`nvda.addons`]
 |two-phase install, remove, and state
 |===
 

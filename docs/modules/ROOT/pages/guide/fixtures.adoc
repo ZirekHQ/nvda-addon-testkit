@@ -1,0 +1,42 @@
+= Fixtures
+
+[cols="1,3"]
+|===
+|Fixture |What it gives you
+
+|`nvda`
+|a connected client, reset between tests
+
+|`addon_bundle`
+|the path to your built `.nvda-addon`, resolved from `addon-bundle` in xref:installation.adoc[]
+
+|`addon_under_test`
+|that bundle, installed and enabled, NVDA restarted
+|===
+
+`addon_under_test` is session-scoped: every test that asks for it shares the same installed
+add-on and the same running NVDA. The plain `nvda` fixture resets state between tests, so most
+tests only need `nvda` and `addon_under_test` together:
+
+[source,python]
+----
+def test_it_survives_a_restart(nvda, addon_under_test):
+include::example$tests_e2e/test_demo_addon.py[tag=fixtures,indent=4]
+----
+
+== Owning the install lifecycle
+
+Reach for the raw `nvda.addons` namespace instead of `addon_under_test` when a test needs to
+drive install/remove itself — for example, to prove the two-phase install contract. Mark it
+`@pytest.mark.fresh_nvda` so it gets its own NVDA process rather than the shared session one:
+
+[source,python]
+----
+@pytest.mark.fresh_nvda
+def test_install_is_two_phase_and_completes_on_restart(
+    nvda, built_demo_addon, assert_no_unexpected_errors
+):
+include::example$tests_e2e/test_demo_addon.py[tag=addons,indent=4]
+----
+
+See xref:guide/addons.adoc[] for what each `AddonState` means.

@@ -1,0 +1,17 @@
+= nvda.log
+
+Structured log records, and `assert_no_errors()` for the common case of "my add-on shouldn't
+have logged anything alarming."
+
+[source,python]
+----
+def test_the_installed_addon_logs_at_startup(nvda, addon_under_test):
+include::example$tests_e2e/test_demo_addon.py[tag=log,indent=4]
+----
+
+`wait_for` takes a regex and an index to search from — pass `since=0` (as above) to search the
+whole session, or `since=nvda.log.index()` taken earlier to ignore anything logged before that
+point.
+
+`errors()` and `warnings()` filter by level; `assert_no_errors()` raises with the offending
+records attached instead of returning a bare `False`.

@@ -1,4 +1,12 @@
 * xref:index.adoc[Overview]
 * xref:installation.adoc[Installation]
-* xref:usage.adoc[Usage]
+* Guide
+** xref:guide/fixtures.adoc[Fixtures]
+** xref:guide/speech.adoc[speech]
+** xref:guide/braille.adoc[braille]
+** xref:guide/keys.adoc[keys]
+** xref:guide/config.adoc[config]
+** xref:guide/log.adoc[log]
+** xref:guide/addons.adoc[addons]
+* xref:example-project.adoc[Example Project]
 * xref:contributing.adoc[Contributing]
