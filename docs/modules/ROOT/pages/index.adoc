@@ -8,11 +8,11 @@ installs your add-on into it, and lets pytest drive it.
 
 [source,python]
 ----
-def test_my_addon_announces_itself(nvda, addon_under_test):
+def test_my_addon_announces_itself(nvda, addon_under_test, assert_no_unexpected_errors):
     before = nvda.speech.index()
     nvda.keys.press("NVDA+shift+m")
     assert "my add-on is ready" in nvda.speech.wait_for("ready", timeout=10, since=before).text
-    nvda.log.assert_no_errors()
+    assert_no_unexpected_errors(nvda)
 ----
 
 == What you get
