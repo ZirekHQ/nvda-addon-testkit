@@ -33,7 +33,8 @@ See xref:example-project.adoc[] for this same pattern applied to a real, working
 |that bundle, installed and enabled, NVDA restarted
 |===
 
-Every fixture and namespace has its own page under *Guide*, with a real, tested code sample:
+Every fixture and namespace has its own page under *Guide*, most with a real, tested code sample
+pulled straight from this kit's own test suite:
 
 [cols="1,3"]
 |===
