@@ -1,0 +1,15 @@
+= nvda.keys
+
+Sending gestures through NVDA's own input pipeline — not simulated at the OS level, so it
+exercises the same gesture-handling code your add-on's `__gestures` map runs under.
+
+[source,python]
+----
+def test_a_gesture_reaches_nvda(nvda):
+include::example$tests_e2e/test_smoke.py[tag=keys,indent=4]
+----
+
+`sent()` returns every gesture NVDA has processed this session, in order — useful for asserting
+that a gesture was actually delivered even when it produces no speech or log line of its own.
+
+`type_text` and `press_all` cover typing a string and chording multiple gestures.

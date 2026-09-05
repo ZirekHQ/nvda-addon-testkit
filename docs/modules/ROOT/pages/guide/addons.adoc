@@ -1,0 +1,40 @@
+= nvda.addons
+
+Two-phase install, remove, and state — install and remove only take effect after NVDA restarts,
+matching how NVDA itself behaves outside tests.
+
+[source,python]
+----
+@pytest.mark.fresh_nvda
+def test_install_is_two_phase_and_completes_on_restart(
+    nvda, built_demo_addon, assert_no_unexpected_errors
+):
+include::example$tests_e2e/test_demo_addon.py[tag=addons,indent=4]
+----
+
+[cols="1,3"]
+|===
+|`AddonState` |Meaning
+
+|`NOT_INSTALLED`
+|no trace of the add-on
+
+|`PENDING_INSTALL`
+|installed, waiting for the restart that enables it
+
+|`ENABLED`
+|installed and running
+
+|`DISABLED`
+|installed but turned off
+
+|`PENDING_REMOVE`
+|marked for removal, waiting for the restart that completes it
+
+|`INCOMPATIBLE`
+|installed, but NVDA refuses to enable it
+|===
+
+Most tests don't need this directly — the xref:guide/fixtures.adoc[`addon_under_test` fixture]
+already does the install-and-restart dance for you. Reach for `nvda.addons` yourself only when a
+test is about the install/remove lifecycle itself.

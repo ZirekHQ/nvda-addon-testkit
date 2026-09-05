@@ -12,22 +12,28 @@ def test_nvda_reaches_idle(nvda):
 
 
 def test_nvda_speaks_when_asked(nvda):
+    # tag::speech[]
     before = nvda.speech.index()
     nvda.speech.speak("the quick brown fox")
     found = nvda.speech.wait_for("quick brown fox", timeout=20, since=before)
     assert "quick brown fox" in found.text
+    # end::speech[]
 
 
 def test_a_gesture_reaches_nvda(nvda):
+    # tag::keys[]
     nvda.keys.press("NVDA+shift+control+F12")
     assert "NVDA+shift+control+F12" in [entry["gesture"] for entry in nvda.keys.sent()]
+    # end::keys[]
 
 
 def test_config_round_trips_through_a_real_nvda(nvda):
+    # tag::config[]
     original = nvda.config.get(("speech", "synth"))
     assert isinstance(original, str)
     snapshot = nvda.config.snapshot()
     assert "speech" in snapshot
+    # end::config[]
 
 
 def test_startup_produced_no_errors(nvda, assert_no_unexpected_errors):

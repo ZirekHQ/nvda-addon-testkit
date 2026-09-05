@@ -1,0 +1,71 @@
+= Example Project
+
+`examples/demo-addon/` in this repository is a complete, minimal add-on that this kit tests
+itself against. It's deliberately boring: one gesture, one spoken phrase, one log line at
+startup — enough surface to assert against, nothing more.
+
+== The add-on
+
+.examples/demo-addon/manifest.ini
+[source,ini]
+----
+include::example$demo-addon/manifest.ini[]
+----
+
+.examples/demo-addon/globalPlugins/testkit_demo.py
+[source,python]
+----
+include::example$demo-addon/globalPlugins/testkit_demo.py[]
+----
+
+== Configure
+
+[source,toml]
+----
+[tool.nvda-testkit]
+addon-bundle = "examples/demo-addon.nvda-addon"
+----
+
+== Build the bundle
+
+.examples/demo-addon/build.py
+[source,python]
+----
+include::example$demo-addon/build.py[]
+----
+
+Use whatever your own add-on already builds with instead — `scons dist`, a Makefile target, this
+same zip-the-folder script. The testkit only cares that a `.nvda-addon` file lands somewhere the
+`addon-bundle` pattern can glob.
+
+== Test it
+
+Most tests just ask for `nvda` and `addon_under_test`:
+
+[source,python]
+----
+def test_it_survives_a_restart(nvda, addon_under_test):
+include::example$tests_e2e/test_demo_addon.py[tag=fixtures,indent=4]
+----
+
+A test that owns the install lifecycle itself asks for `nvda.addons` directly instead — see
+xref:guide/addons.adoc[] for what each state means:
+
+[source,python]
+----
+@pytest.mark.fresh_nvda
+def test_install_is_two_phase_and_completes_on_restart(
+    nvda, built_demo_addon, assert_no_unexpected_errors
+):
+include::example$tests_e2e/test_demo_addon.py[tag=addons,indent=4]
+----
+
+== Run it
+
+[source,bash]
+----
+python examples/demo-addon/build.py
+pytest tests_e2e/test_demo_addon.py -v
+----
+
+Windows only — see xref:installation.adoc[] for running the same suite in GitHub Actions.

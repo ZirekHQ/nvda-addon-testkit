@@ -20,6 +20,7 @@ def test_install_is_two_phase_and_completes_on_restart(
     session-scoped and installs the same add-on, so the two would collide.
     Cleaning up here is what lets the rest of the file rely on the fixture.
     """
+    # tag::addons[]
     assert nvda.addons.state("testkit-demo") is AddonState.NOT_INSTALLED
 
     info = nvda.addons.install(built_demo_addon)
@@ -33,11 +34,14 @@ def test_install_is_two_phase_and_completes_on_restart(
     nvda.addons.remove("testkit-demo")
     nvda.restart()
     assert nvda.addons.state("testkit-demo") is AddonState.NOT_INSTALLED
+    # end::addons[]
 
 
 def test_the_installed_addon_logs_at_startup(nvda, addon_under_test):
+    # tag::log[]
     nvda.restart()
     nvda.log.wait_for(re.escape(STARTUP_MESSAGE), since=0, timeout=20)
+    # end::log[]
 
 
 def test_its_gesture_produces_the_expected_speech(nvda, addon_under_test):
@@ -48,11 +52,13 @@ def test_its_gesture_produces_the_expected_speech(nvda, addon_under_test):
 
 
 def test_it_survives_a_restart(nvda, addon_under_test):
+    # tag::fixtures[]
     nvda.restart()
     assert nvda.addons.state("testkit-demo") is AddonState.ENABLED
     before = nvda.speech.index()
     nvda.keys.press("NVDA+shift+control+d")
     nvda.speech.wait_for(SPOKEN_PHRASE, timeout=20, since=before)
+    # end::fixtures[]
 
 
 def test_removal_is_also_two_phase(nvda, addon_under_test):

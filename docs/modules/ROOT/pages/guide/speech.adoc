@@ -1,0 +1,16 @@
+= nvda.speech
+
+What NVDA asked to say, and waiting for it.
+
+[source,python]
+----
+def test_nvda_speaks_when_asked(nvda):
+include::example$tests_e2e/test_smoke.py[tag=speech,indent=4]
+----
+
+`wait_for` polls until a speech sequence matching the pattern arrives, since the given index —
+it will not pass on a stale sequence spoken before `since`, and raises on timeout instead of
+returning `None`.
+
+`index()`, `clear()`, and `cancel()` are also available for tests that care about ordering or
+interruption rather than just content.

@@ -1,0 +1,24 @@
+= nvda.config
+
+Reading and writing NVDA's configuration, so a test can set up the exact state your add-on's
+code path depends on.
+
+[source,python]
+----
+def test_config_round_trips_through_a_real_nvda(nvda):
+include::example$tests_e2e/test_smoke.py[tag=config,indent=4]
+----
+
+`snapshot()` and `restore()` let a test change configuration for the duration of one test and
+put it back afterwards, without needing to know every key it touched:
+
+[source,python]
+----
+def test_something_under_a_changed_setting(nvda):
+    snapshot = nvda.config.snapshot()
+    try:
+        nvda.config.set(("speech", "symbolLevel"), "all")
+        ...
+    finally:
+        nvda.config.restore(snapshot)
+----

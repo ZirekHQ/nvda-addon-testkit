@@ -1,0 +1,18 @@
+= nvda.braille
+
+The raw text sent to the braille display.
+
+[source,python]
+----
+def test_my_addon_updates_braille(nvda, addon_under_test):
+    before = nvda.braille.index()
+    nvda.keys.press("NVDA+shift+b")
+    assert "expected cell text" in nvda.braille.since(before)
+----
+
+NOTE: Unlike the other namespace pages, this snippet is illustrative rather than pulled from a
+real test — nothing in this kit's own suite currently drives a braille display end to end.
+
+`index()`, `since()`, `all()`, and `last()` mirror xref:guide/speech.adoc[`nvda.speech`]'s shape.
+`wait_for` polls the same way. `set_cell_count()` / `cell_count()` let a test simulate a display
+of a given width, since braille output wraps differently depending on it.
