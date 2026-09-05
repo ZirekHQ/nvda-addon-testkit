@@ -1,0 +1,34 @@
+= Usage
+
+== Developing the kit itself
+
+The host side is fully testable on Linux against a scriptable double:
+
+[source,bash]
+----
+pip install -e ".[dev]"
+python tools/build_spy.py
+pytest                       # host and spy unit tests, any platform
+pytest tests_e2e/ -v         # real NVDA, Windows only
+nvda-testkit doctor          # check this machine
+----
+
+`build_spy.py` packages `spy/` (the scriptable NVDA double) into the `.nvda-addon` the host-side
+tests install. Rerun it whenever you change anything under `spy/`.
+
+[cols="1,3,1"]
+|===
+|Tree |Exercises |Runs on
+
+|`tests/`
+|the host-side library, against `tests/fake_nvda.py`
+|Linux + Windows
+
+|`tests_spy/`
+|`spy/`, the in-NVDA agent, against stubbed NVDA modules (`tests_spy/nvda_stubs.py`)
+|Linux + Windows
+
+|`tests_e2e/`
+|both halves together, against a real provisioned NVDA
+|Windows only
+|===

@@ -1,0 +1,34 @@
+= Installation
+
+[source,bash]
+----
+pip install nvda-addon-testkit
+----
+
+== Configure
+
+[source,toml]
+----
+[tool.nvda-testkit]
+addon-bundle = "dist/my-addon-*.nvda-addon"
+nvda-channel = "stable"
+----
+
+== Run in GitHub Actions
+
+[source,yaml]
+----
+jobs:
+  e2e:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v5
+      - uses: zirekhq/nvda-addon-testkit@v1
+        with:
+          nvda-channel: stable
+      - run: pytest tests_e2e/ -v
+----
+
+The action is OS-agnostic — pick whichever Windows runner matches what your users run. This
+repository's own e2e test suite runs on both `windows-2025` and `windows-2022` (the latter for
+Windows 10 22H2, including builds still on Extended Security Updates).
