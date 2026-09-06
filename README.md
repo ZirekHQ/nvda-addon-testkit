@@ -1,5 +1,7 @@
 # nvda-addon-testkit
 
+[Project board](https://github.com/orgs/ZirekHQ/projects/1) — live roadmap and status for this repo's issues.
+
 End-to-end testing for NVDA add-ons, against a real NVDA, in CI.
 
 Your add-on's logic can be unit-tested with stubs. What cannot be stubbed is
