@@ -90,3 +90,13 @@ nvda-testkit doctor          # check this machine
 ## Licence
 
 GPL-2.0-or-later.
+
+---
+
+## 💝 Support This Project
+
+If this repository saves you time and effort, please consider supporting it!
+
+- ⭐ [Star on GitHub](https://github.com/ZirekHQ/nvda-addon-testkit)
+- 🐦 [Share on Twitter](https://twitter.com/intent/tweet?text=nvda-addon-testkit%20-%20real%20end-to-end%20testing%20for%20NVDA%20add-ons&url=https%3A%2F%2Fgithub.com%2FZirekHQ%2Fnvda-addon-testkit)
+- 💖 [More ways to support](https://github.com/ZirekHQ) — Open Collective coming soon
