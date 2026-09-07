@@ -1,25 +1,8 @@
 name: Release
 
-# Computes the next version from Conventional Commit subjects merged to
-# main since the last vX.Y.Z tag (scripts/next-version.sh -- the same
-# repo-agnostic script dengjen-tts/dengjen-piper-rs/dengjen-tashkeel use
-# ahead of their version-bump PR) and tags it.
-#
-# This repo has no version file to bump: the package version is derived
-# entirely from the git tag via hatch-vcs (pyproject.toml's
-# [tool.hatch.version] source = "vcs"), so there's nothing for a
-# version-bump PR to diff, and the "merge the bump PR" gate the other repos
-# use doesn't map here. Deliberately running this workflow
-# (workflow_dispatch) is the equivalent human decision instead, backed by a
-# second, explicit `environment: release` approval job so a single
-# accidental dispatch still can't tag and publish unattended.
-#
-# release-drafter (release-drafter.yml) keeps a running draft release with
-# categorized PR-title notes as PRs merge to main -- that accumulated
-# content is worth keeping, not replaced by a bare --generate-notes call,
-# so this workflow publishes THAT draft against the new tag instead of
-# creating a fresh release. Publishing it is what fires publish.yml's
-# `release: types: [published]` trigger (PyPI, via OIDC trusted publishing).
+# No version file to bump here -- hatch-vcs derives the package version from the git
+# tag (pyproject.toml), so there's no bump-PR diff for a merge gate the way sibling
+# repos have. workflow_dispatch plus the environment:release approval below substitute.
 on:
   workflow_dispatch:
     inputs:
@@ -50,10 +33,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # Exported so tag-and-publish tags/checks-out this exact commit rather than the
-      # workflow_dispatch's own github.sha -- main can move during approve's wait, and this job's
-      # own checkout above is the only thing that pins which commit the computed version actually
-      # describes.
+      # Exported so tag-and-publish tags/checks-out this exact commit rather than the dispatch's
+      # own github.sha -- main can move during approve's wait, and this checkout is the only
+      # thing pinning which commit the computed version actually describes.
       - name: Resolve commit SHA
         id: resolve-sha
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -112,12 +94,9 @@ jobs:
           persist-credentials: true
 
       - name: Push release tag
-        # Checked against origin, not the local clone -- checkout's shallow fetch wouldn't
-        # reliably reflect a tag pushed by an earlier attempt. A human-pushed annotated tag (this
-        # pipeline only ever creates lightweight ones) peels to the commit SHA via a *separate*
-        # `^{}`-suffixed query -- ls-remote never returns that line unless asked for it by name,
-        # so a single unsuffixed query can't distinguish the two cases (verified locally against
-        # both tag types before relying on this).
+        # Checked against origin (shallow fetch), not the local clone. An annotated tag peels to
+        # the commit SHA via a separate `^{}`-suffixed query -- ls-remote only returns that line
+        # when asked for it by name, so one unsuffixed query can't tell the two cases apart.
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -141,16 +120,9 @@ jobs:
           fi
 
       - name: Publish release-drafter's draft against this tag
-        # release-drafter maintains exactly one running draft -- found by
-        # draft:true rather than by name/tag, since its tag-template
-        # ($RESOLVED_VERSION) is a placeholder the maintainer previously
-        # confirmed by hand, which this step now does instead. Setting
-        # tag_name to the real vX.Y.Z and draft:false publishes it, which is
-        # what publish.yml's `release: types: [published]` trigger normally
-        # listens for -- except a release published via the default
-        # GITHUB_TOKEN doesn't re-trigger other workflows (GitHub suppresses
-        # recursive triggers from anything but workflow_dispatch/
-        # repository_dispatch), so that event alone won't actually fire it.
+        # Matched by draft:true (release-drafter keeps exactly one rolling draft), not by its
+        # $RESOLVED_VERSION tag-template placeholder, which a maintainer previously filled in
+        # by hand and this step now does instead.
         run: |
           set -euo pipefail
           draft_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq '[.[] | select(.draft == true)] | first | .id')"
@@ -164,6 +136,7 @@ jobs:
             -F draft=false
 
       - name: Trigger PyPI publish
-        # Explicit dispatch, not reliance on the release:published event above -- see that
-        # step's comment.
+        # A release published via the default GITHUB_TOKEN doesn't re-trigger publish.yml's
+        # release:published listener -- GitHub suppresses recursive triggers from anything but
+        # workflow_dispatch/repository_dispatch.
         run: gh workflow run publish.yml --ref main

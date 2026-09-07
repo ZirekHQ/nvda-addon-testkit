@@ -3,10 +3,8 @@ name: Publish
 on:
   release:
     types: [published]
-  # release.yml dispatches this explicitly after publishing the release-drafter draft --
-  # a release published via the default GITHUB_TOKEN doesn't re-trigger the `release:
-  # published` listener above (GitHub suppresses recursive triggers from anything but
-  # workflow_dispatch/repository_dispatch), so that event alone won't fire this workflow.
+  # Added so release.yml can dispatch this explicitly -- a GITHUB_TOKEN-authored release
+  # publish (release.yml's own step) doesn't re-trigger the listener above.
   workflow_dispatch: {}
 
 jobs:
