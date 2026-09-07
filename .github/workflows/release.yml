@@ -42,11 +42,21 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.next.outputs.version }}
+      sha: ${{ steps.resolve-sha.outputs.sha }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
+
+      # Exported so tag-and-publish tags/checks-out this exact commit rather than the
+      # workflow_dispatch's own github.sha -- main can move during approve's wait, and this job's
+      # own checkout above is the only thing that pins which commit the computed version actually
+      # describes.
+      - name: Resolve commit SHA
+        id: resolve-sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Compute next version
         id: next
@@ -85,24 +95,40 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Needed for `gh workflow run` below; GITHUB_TOKEN can't dispatch a run from an event
+      # it itself authored (the release-publish step further down), which is exactly why that
+      # dispatch has to be explicit in the first place.
+      actions: write
     env:
       VERSION: ${{ needs.compute-version.outputs.version }}
+      SHA: ${{ needs.compute-version.outputs.sha }}
       GH_TOKEN: ${{ github.token }}
     steps:
+      # Pinned to compute-version's resolved SHA, not the implicit github.sha -- see that job's
+      # "Resolve commit SHA" step for why.
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          ref: ${{ needs.compute-version.outputs.sha }}
           persist-credentials: true
 
       - name: Push release tag
-        # Checked against origin, not the local clone -- checkout's shallow fetch wouldn't reliably reflect a tag pushed by an earlier attempt.
+        # Checked against origin, not the local clone -- checkout's shallow fetch wouldn't
+        # reliably reflect a tag pushed by an earlier attempt. A human-pushed annotated tag (this
+        # pipeline only ever creates lightweight ones) peels to the commit SHA via a *separate*
+        # `^{}`-suffixed query -- ls-remote never returns that line unless asked for it by name,
+        # so a single unsuffixed query can't distinguish the two cases (verified locally against
+        # both tag types before relying on this).
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          existing="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"
+          existing="$(git ls-remote origin "refs/tags/v${VERSION}^{}" | cut -f1)"
+          if [ -z "$existing" ]; then
+            existing="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"
+          fi
           if [ -n "$existing" ]; then
-            if [ "$existing" != "$GITHUB_SHA" ]; then
-              echo "::error::v${VERSION} already exists on origin and points at ${existing}, not this commit (${GITHUB_SHA})" >&2
+            if [ "$existing" != "$SHA" ]; then
+              echo "::error::v${VERSION} already exists on origin and points at ${existing}, not this commit (${SHA})" >&2
               exit 1
             fi
             echo "v${VERSION} already exists on origin and points at this commit -- reusing it"
@@ -119,8 +145,12 @@ jobs:
         # draft:true rather than by name/tag, since its tag-template
         # ($RESOLVED_VERSION) is a placeholder the maintainer previously
         # confirmed by hand, which this step now does instead. Setting
-        # tag_name to the real vX.Y.Z and draft:false is what fires
-        # publish.yml's `release: types: [published]` trigger.
+        # tag_name to the real vX.Y.Z and draft:false publishes it, which is
+        # what publish.yml's `release: types: [published]` trigger normally
+        # listens for -- except a release published via the default
+        # GITHUB_TOKEN doesn't re-trigger other workflows (GitHub suppresses
+        # recursive triggers from anything but workflow_dispatch/
+        # repository_dispatch), so that event alone won't actually fire it.
         run: |
           set -euo pipefail
           draft_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq '[.[] | select(.draft == true)] | first | .id')"
@@ -132,3 +162,8 @@ jobs:
             -f tag_name="v${VERSION}" \
             -f target_commitish="main" \
             -F draft=false
+
+      - name: Trigger PyPI publish
+        # Explicit dispatch, not reliance on the release:published event above -- see that
+        # step's comment.
+        run: gh workflow run publish.yml --ref main
