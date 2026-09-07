@@ -1,0 +1,142 @@
+name: Release
+
+# No version file to bump here -- hatch-vcs derives the package version from the git
+# tag (pyproject.toml), so there's no bump-PR diff for a merge gate the way sibling
+# repos have. workflow_dispatch plus the environment:release approval below substitute.
+on:
+  workflow_dispatch:
+    inputs:
+      new_tag:
+        description: "Override the vX.Y.Z tag"
+        required: false
+        type: string
+      dry_run:
+        description: "Dry Run: compute the version, tag nothing, publish nothing"
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  compute-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+      sha: ${{ steps.resolve-sha.outputs.sha }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Exported so tag-and-publish tags/checks-out this exact commit rather than the dispatch's
+      # own github.sha -- main can move during approve's wait, and this checkout is the only
+      # thing pinning which commit the computed version actually describes.
+      - name: Resolve commit SHA
+        id: resolve-sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Compute next version
+        id: next
+        env:
+          NEW_TAG: ${{ inputs.new_tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${NEW_TAG:-}" ]; then
+            version="${NEW_TAG#v}"
+            if ! echo "$version" | grep -qE '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+              echo "::error::new_tag '${NEW_TAG}' doesn't look like a vX.Y.Z tag" >&2
+              exit 1
+            fi
+          else
+            version="$(bash scripts/next-version.sh)"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Computed v${version}"
+
+  approve:
+    name: Approve release
+    needs: compute-version
+    if: inputs.dry_run != true
+    runs-on: ubuntu-latest
+    environment: release
+    permissions: {}
+    steps:
+      - env:
+          VERSION: ${{ needs.compute-version.outputs.version }}
+        run: echo "Approved v${VERSION} for release"
+
+  tag-and-publish:
+    name: Tag and publish
+    needs: [compute-version, approve]
+    if: "always() && inputs.dry_run != true && needs.compute-version.result == 'success' && needs.approve.result == 'success'"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # Needed for `gh workflow run` below; GITHUB_TOKEN can't dispatch a run from an event
+      # it itself authored (the release-publish step further down), which is exactly why that
+      # dispatch has to be explicit in the first place.
+      actions: write
+    env:
+      VERSION: ${{ needs.compute-version.outputs.version }}
+      SHA: ${{ needs.compute-version.outputs.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # Pinned to compute-version's resolved SHA, not the implicit github.sha -- see that job's
+      # "Resolve commit SHA" step for why.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.compute-version.outputs.sha }}
+          persist-credentials: true
+
+      - name: Push release tag
+        # Checked against origin (shallow fetch), not the local clone. An annotated tag peels to
+        # the commit SHA via a separate `^{}`-suffixed query -- ls-remote only returns that line
+        # when asked for it by name, so one unsuffixed query can't tell the two cases apart.
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          existing="$(git ls-remote origin "refs/tags/v${VERSION}^{}" | cut -f1)"
+          if [ -z "$existing" ]; then
+            existing="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"
+          fi
+          if [ -n "$existing" ]; then
+            if [ "$existing" != "$SHA" ]; then
+              echo "::error::v${VERSION} already exists on origin and points at ${existing}, not this commit (${SHA})" >&2
+              exit 1
+            fi
+            echo "v${VERSION} already exists on origin and points at this commit -- reusing it"
+          elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            git tag "v${VERSION}"
+            git push origin "v${VERSION}"
+          else
+            echo "::error::Refusing to create v${VERSION} from ${GITHUB_REF} -- release tags are only created from main" >&2
+            exit 1
+          fi
+
+      - name: Publish release-drafter's draft against this tag
+        # Matched by draft:true (release-drafter keeps exactly one rolling draft), not by its
+        # $RESOLVED_VERSION tag-template placeholder, which a maintainer previously filled in
+        # by hand and this step now does instead.
+        run: |
+          set -euo pipefail
+          draft_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq '[.[] | select(.draft == true)] | first | .id')"
+          if [ -z "$draft_id" ] || [ "$draft_id" = "null" ]; then
+            echo "::error::No release-drafter draft found to publish -- check release-drafter.yml ran on main" >&2
+            exit 1
+          fi
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${draft_id}" \
+            -f tag_name="v${VERSION}" \
+            -f target_commitish="main" \
+            -F draft=false
+
+      - name: Trigger PyPI publish
+        # A release published via the default GITHUB_TOKEN doesn't re-trigger publish.yml's
+        # release:published listener -- GitHub suppresses recursive triggers from anything but
+        # workflow_dispatch/repository_dispatch.
+        run: gh workflow run publish.yml --ref main

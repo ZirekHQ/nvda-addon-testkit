@@ -3,6 +3,9 @@ name: Publish
 on:
   release:
     types: [published]
+  # Added so release.yml can dispatch this explicitly -- a GITHUB_TOKEN-authored release
+  # publish (release.yml's own step) doesn't re-trigger the listener above.
+  workflow_dispatch: {}
 
 jobs:
   build:
