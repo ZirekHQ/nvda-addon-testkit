@@ -1,0 +1,134 @@
+name: Release
+
+# Computes the next version from Conventional Commit subjects merged to
+# main since the last vX.Y.Z tag (scripts/next-version.sh -- the same
+# repo-agnostic script dengjen-tts/dengjen-piper-rs/dengjen-tashkeel use
+# ahead of their version-bump PR) and tags it.
+#
+# This repo has no version file to bump: the package version is derived
+# entirely from the git tag via hatch-vcs (pyproject.toml's
+# [tool.hatch.version] source = "vcs"), so there's nothing for a
+# version-bump PR to diff, and the "merge the bump PR" gate the other repos
+# use doesn't map here. Deliberately running this workflow
+# (workflow_dispatch) is the equivalent human decision instead, backed by a
+# second, explicit `environment: release` approval job so a single
+# accidental dispatch still can't tag and publish unattended.
+#
+# release-drafter (release-drafter.yml) keeps a running draft release with
+# categorized PR-title notes as PRs merge to main -- that accumulated
+# content is worth keeping, not replaced by a bare --generate-notes call,
+# so this workflow publishes THAT draft against the new tag instead of
+# creating a fresh release. Publishing it is what fires publish.yml's
+# `release: types: [published]` trigger (PyPI, via OIDC trusted publishing).
+on:
+  workflow_dispatch:
+    inputs:
+      new_tag:
+        description: "Override the vX.Y.Z tag"
+        required: false
+        type: string
+      dry_run:
+        description: "Dry Run: compute the version, tag nothing, publish nothing"
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  compute-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Compute next version
+        id: next
+        env:
+          NEW_TAG: ${{ inputs.new_tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${NEW_TAG:-}" ]; then
+            version="${NEW_TAG#v}"
+            if ! echo "$version" | grep -qE '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+              echo "::error::new_tag '${NEW_TAG}' doesn't look like a vX.Y.Z tag" >&2
+              exit 1
+            fi
+          else
+            version="$(bash scripts/next-version.sh)"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Computed v${version}"
+
+  approve:
+    name: Approve release
+    needs: compute-version
+    if: inputs.dry_run != true
+    runs-on: ubuntu-latest
+    environment: release
+    permissions: {}
+    steps:
+      - env:
+          VERSION: ${{ needs.compute-version.outputs.version }}
+        run: echo "Approved v${VERSION} for release"
+
+  tag-and-publish:
+    name: Tag and publish
+    needs: [compute-version, approve]
+    if: "always() && inputs.dry_run != true && needs.compute-version.result == 'success' && needs.approve.result == 'success'"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.compute-version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: true
+
+      - name: Push release tag
+        # Checked against origin, not the local clone -- checkout's shallow fetch wouldn't reliably reflect a tag pushed by an earlier attempt.
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          existing="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"
+          if [ -n "$existing" ]; then
+            if [ "$existing" != "$GITHUB_SHA" ]; then
+              echo "::error::v${VERSION} already exists on origin and points at ${existing}, not this commit (${GITHUB_SHA})" >&2
+              exit 1
+            fi
+            echo "v${VERSION} already exists on origin and points at this commit -- reusing it"
+          elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            git tag "v${VERSION}"
+            git push origin "v${VERSION}"
+          else
+            echo "::error::Refusing to create v${VERSION} from ${GITHUB_REF} -- release tags are only created from main" >&2
+            exit 1
+          fi
+
+      - name: Publish release-drafter's draft against this tag
+        # release-drafter maintains exactly one running draft -- found by
+        # draft:true rather than by name/tag, since its tag-template
+        # ($RESOLVED_VERSION) is a placeholder the maintainer previously
+        # confirmed by hand, which this step now does instead. Setting
+        # tag_name to the real vX.Y.Z and draft:false is what fires
+        # publish.yml's `release: types: [published]` trigger.
+        run: |
+          set -euo pipefail
+          draft_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq '[.[] | select(.draft == true)] | first | .id')"
+          if [ -z "$draft_id" ] || [ "$draft_id" = "null" ]; then
+            echo "::error::No release-drafter draft found to publish -- check release-drafter.yml ran on main" >&2
+            exit 1
+          fi
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${draft_id}" \
+            -f tag_name="v${VERSION}" \
+            -f target_commitish="main" \
+            -F draft=false
