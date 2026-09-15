@@ -77,10 +77,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      # Needed for `gh workflow run` below; GITHUB_TOKEN can't dispatch a run from an event
-      # it itself authored (the release-publish step further down), which is exactly why that
-      # dispatch has to be explicit in the first place.
-      actions: write
     env:
       VERSION: ${{ needs.compute-version.outputs.version }}
       SHA: ${{ needs.compute-version.outputs.sha }}
@@ -135,8 +131,15 @@ jobs:
             -f target_commitish="main" \
             -F draft=false
 
-      - name: Trigger PyPI publish
-        # A release published via the default GITHUB_TOKEN doesn't re-trigger publish.yml's
-        # release:published listener -- GitHub suppresses recursive triggers from anything but
-        # workflow_dispatch/repository_dispatch.
-        run: gh workflow run publish.yml --ref main
+  pypi:
+    name: PyPI
+    needs: [compute-version, tag-and-publish]
+    permissions:
+      contents: read
+      id-token: write
+    # A release published via the default GITHUB_TOKEN doesn't re-trigger publish.yml's
+    # release:published listener (GitHub suppresses that recursion), so this calls it directly
+    # instead -- pinned to the tag just pushed, not main, which could move in the meantime.
+    uses: ./.github/workflows/publish.yml # zizmor: ignore[self-repository] low-severity style suggestion (use '$/...'), not a finding -- zizmor.yml doesn't pin a CLI version to confirm '$/' support
+    with:
+      ref: v${{ needs.compute-version.outputs.version }}
