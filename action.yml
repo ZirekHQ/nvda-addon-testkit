@@ -10,6 +10,9 @@ inputs:
   testkit-version:
     description: Version specifier for nvda-addon-testkit
     default: ""
+branding:
+  icon: check-circle
+  color: green
 runs:
   using: composite
   steps:

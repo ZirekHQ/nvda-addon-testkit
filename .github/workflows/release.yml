@@ -115,6 +115,15 @@ jobs:
             exit 1
           fi
 
+      # README documents `uses: zirekhq/nvda-addon-testkit@v1` -- this step keeps that
+      # moving tag pointed at the latest release in its major line.
+      - name: Move major version tag
+        run: |
+          set -euo pipefail
+          major="v${VERSION%%.*}"
+          git tag -fa "$major" -m "$major" "$SHA"
+          git push origin "$major" --force
+
       - name: Publish release-drafter's draft against this tag
         # Matched by draft:true (release-drafter keeps exactly one rolling draft), not by its
         # $RESOLVED_VERSION tag-template placeholder, which a maintainer previously filled in
