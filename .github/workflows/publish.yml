@@ -3,9 +3,7 @@ name: Publish
 on:
   release:
     types: [published]
-  # Manual retry path (e.g. PyPI publish failed after the GitHub release already went out) --
-  # gated below, since unlike workflow_call it can't be distinguished from release.yml's own
-  # sanctioned flow by event_name alone.
+  # Manual retry path (e.g. PyPI publish failed after the GitHub release already went out).
   workflow_dispatch: {}
   workflow_call:
     inputs:
@@ -17,11 +15,13 @@ on:
 permissions: {}
 
 jobs:
-  # Only gates workflow_dispatch: release.yml's approve job is the real decision point now
-  # that it calls this workflow directly via workflow_call, and a real GitHub Release being
-  # published (release: published) already implies review.
+  # github.event_name mirrors the CALLING workflow's own trigger event inside a workflow_call
+  # (release.yml's workflow_dispatch makes this 'workflow_dispatch' here too) -- workflow_ref
+  # stays bound to the top-level caller, so this checks that instead of event_name alone.
   gate:
-    if: github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      startsWith(github.workflow_ref, format('{0}/.github/workflows/publish.yml@', github.repository))
     runs-on: ubuntu-latest
     environment: release
     permissions: {}
