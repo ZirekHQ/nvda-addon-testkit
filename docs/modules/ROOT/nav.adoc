@@ -1,5 +1,6 @@
 * xref:index.adoc[Overview]
 * xref:installation.adoc[Installation]
+* xref:tutorial.adoc[Writing Your First Test]
 * Guide
 ** xref:guide/fixtures.adoc[Fixtures]
 ** xref:guide/speech.adoc[speech]
@@ -9,4 +10,6 @@
 ** xref:guide/log.adoc[log]
 ** xref:guide/addons.adoc[addons]
 * xref:example-project.adoc[Example Project]
+* xref:ci-guide.adoc[Configuring CI]
+* xref:troubleshooting.adoc[Troubleshooting]
 * xref:contributing.adoc[Contributing]

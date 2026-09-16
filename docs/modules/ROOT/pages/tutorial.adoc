@@ -1,0 +1,110 @@
+= Writing Your First Test
+
+A worked walkthrough of everything in xref:index.adoc[], using
+`examples/demo-addon/` — the same add-on this kit tests itself against — as
+the add-on under test. By the end you will have run one real end-to-end test
+against a real NVDA.
+
+Windows only: NVDA cannot run headless on Linux or macOS. See
+xref:installation.adoc[] for CI, where the runner provides Windows for you.
+
+== 1. Install and configure
+
+[source,bash]
+----
+pip install nvda-addon-testkit
+----
+
+Point the plugin at your add-on's built bundle in `pyproject.toml`:
+
+[source,toml]
+----
+[tool.nvda-testkit]
+addon-bundle = "examples/demo-addon.nvda-addon"
+----
+
+`addon-bundle` is a glob, not a literal path — it can match a version number
+your build script stamps into the filename. The `addon_bundle` fixture fails
+loudly if the pattern matches zero or more than one file, rather than
+guessing.
+
+== 2. Build the bundle
+
+The demo add-on builds with a small zip script:
+
+[source,python]
+----
+include::example$demo-addon/build.py[]
+----
+
+Use whatever already builds your own add-on instead — `scons dist`, a
+Makefile target, this same script. The testkit only cares that a
+`.nvda-addon` lands somewhere the `addon-bundle` pattern can glob:
+
+[source,bash]
+----
+python examples/demo-addon/build.py
+----
+
+== 3. Look at what you're testing
+
+The demo add-on is deliberately boring — one gesture, one spoken phrase, one
+log line at startup:
+
+[source,python]
+----
+include::example$demo-addon/globalPlugins/testkit_demo.py[]
+----
+
+Pressing `NVDA+shift+control+d` speaks `"testkit demo says hello"`.
+Startup logs `"testkit demo add-on loaded"`. That is the whole contract a
+test needs to exercise.
+
+== 4. Write the test
+
+Create `tests_e2e/test_first.py`:
+
+[source,python]
+----
+def test_demo_addon_announces_itself(nvda, addon_under_test):
+    before = nvda.speech.index()
+    nvda.keys.press("NVDA+shift+control+d")
+    found = nvda.speech.wait_for("testkit demo says hello", timeout=10, since=before)
+    assert "testkit demo says hello" in found.text
+    nvda.log.assert_no_errors()
+----
+
+What each fixture does:
+
+[cols="1,3"]
+|===
+|Fixture |Role in this test
+
+|`nvda`
+|the connected client — reset between tests, so each test starts clean
+
+|`addon_under_test`
+|installs `addon_bundle` and restarts NVDA, so the add-on is `ENABLED` before the test body runs
+|===
+
+`nvda.speech.index()` before the gesture matters: `wait_for` only sees speech
+produced after the index it was given, so capturing it after the press would
+race the add-on and could miss the phrase entirely. See
+xref:guide/speech.adoc[] for the full namespace.
+
+== 5. Run it
+
+[source,bash]
+----
+pytest tests_e2e/test_first.py -v
+----
+
+A failure here is expected the first few times — see
+xref:troubleshooting.adoc[] for what a timeout, a crash, or a mismatched
+assertion actually looks like and what it means.
+
+== Next steps
+
+* xref:guide/fixtures.adoc[] and the rest of *Guide* cover every namespace this test touched, plus `nvda.addons`, `nvda.config`, and `nvda.braille`.
+* xref:example-project.adoc[] documents the full demo add-on as a standing reference, including the two-phase install test.
+* xref:ci-guide.adoc[] gets this same test running on every pull request.
