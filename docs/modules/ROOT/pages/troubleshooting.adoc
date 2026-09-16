@@ -1,0 +1,112 @@
+= Troubleshooting
+
+Common failures in an end-to-end run, what actually produces each error
+message, and what to check first. Every error below descends from
+`TestkitError`.
+
+== NVDA never starts
+
+*Symptom:* `NvdaStartupError: NVDA exited with code N before handshaking.`
+
+NVDA's process exited before it announced itself. The message includes the
+command line and a tail of the NVDA log — read that first. Common causes are
+a portable copy that failed to extract, or a genuinely incompatible
+`nvda-channel` / add-on combination.
+
+*Symptom:* `HandshakeTimeout: NVDA started but never announced itself within
+Ns. Expected <path>. Is the spy add-on installed and enabled?`
+
+NVDA's process is still running, but it never wrote the handshake file the
+testkit is waiting for. On Windows CI runners this is most often Defender's
+on-access scan holding up a freshly-extracted `.exe` rather than anything
+your add-on did — the diagnostic block attached to this error dumps
+`tasklist` and Defender's real-time-protection status for exactly that
+reason. If the spy bundle itself is stale or missing, `nvda-testkit doctor`
+catches that before you get this far (xref:ci-guide.adoc[]).
+
+If NVDA is simply slow on your runner rather than stuck, scale every timeout
+in the kit with `--nvda-timeout-scale`:
+
+[source,bash]
+----
+pytest tests_e2e/ -v --nvda-timeout-scale=2
+----
+
+== NVDA crashes or restarts mid-test
+
+A crash surfaces as one of two things depending on when it happens:
+
+* Before or during a handshake: `NvdaStartupError` or `HandshakeTimeout`, above.
+* Mid-test, after a working session: `RpcError: Could not reach the spy on 127.0.0.1:<port> calling '<method>'. NVDA has probably died.` Check `testOutput/nvda.log` (or wherever `out-dir` points) for what NVDA logged right before the transport dropped.
+
+*Symptom:* `AuthError: The spy rejected our token calling '<method>'. A
+stale NVDA from a previous run is the usual cause.`
+
+Every RPC call carries a session token specifically so a leftover NVDA
+process from an earlier, unrelated run can't quietly answer this run's
+questions. If this happens locally, kill any NVDA process still running from
+a prior interrupted test session (`--nvda-keep-portable` leaves one behind on
+purpose — remove that flag if you don't need the portable copy kept).
+
+== Add-on won't install
+
+*Symptom:* `ProvisionError: No add-on bundle configured...` or `No add-on
+bundle matched '<pattern>' from <dir>. Build it first.`
+
+`addon-bundle` in `pyproject.toml` is a glob, and the fixture that resolves
+it never builds anything for you — build the `.nvda-addon` before the test
+session starts (xref:tutorial.adoc[] step 2). A second `ProvisionError`,
+`'<pattern>' matched N bundles`, means a stale build is still sitting next to
+the current one; clean it out or narrow the pattern.
+
+*Symptom:* a test asserts `AddonState.ENABLED` right after `install()` and
+fails.
+
+Install is two-phase by design — `install()` only reaches
+`PENDING_INSTALL`; a call to `nvda.restart()` is what completes it. See
+xref:guide/addons.adoc[].
+
+== Speech assertion mismatches
+
+*Symptom:* `WaitTimeout: Timed out after Ns waiting for speech matching
+'<pattern>'. Last seen: [...]`
+
+`wait_for` raises rather than returning `None`, and its message includes
+every sequence it actually saw in the window it searched — read `Last seen`
+before assuming your add-on didn't speak. The usual causes, in order of
+likelihood:
+
+* `since` captured too late — `speech.index()` (or `wait_for`'s own implicit
+  snapshot) must be taken before the action that triggers speech. Capturing
+  it after `nvda.keys.press(...)` can miss speech that already happened.
+* the pattern is a literal string containing regex metacharacters —
+  `wait_for` takes a regex; punctuation like `.` or `(` in the phrase you're
+  matching needs `re.escape()`, as xref:guide/log.adoc[]'s example does for
+  exactly this reason.
+* the phrase really wasn't spoken — `Last seen` shows what NVDA said instead;
+  compare it against what your add-on's `ui.message()` call actually sends.
+
+`matches()` is case-insensitive by default, so casing is rarely the cause.
+
+== NVDA logged unexpected errors
+
+`nvda.log.assert_no_errors()` raises with every offending record attached —
+that message is often the only diagnostic available on a machine that can't
+run NVDA at all, so read it before re-running. `nvda.log.errors(since=...)`
+and `.warnings(since=...)` let a test inspect records directly instead of
+just asserting on them; xref:guide/log.adoc[] covers `since` semantics.
+
+On minimal CI runners, NVDA itself can log expected environmental noise —
+missing audio device, no synthesizer, no braille display, no interactive
+desktop — that has nothing to do with your add-on. This repository's own
+`tests_e2e/conftest.py` filters exactly that class of message (audio,
+`synthDriver`, braille, `UIAHandler`/desktop errors) into a warning instead
+of a failure before asserting on the rest. Consider the same pattern if your
+add-on's e2e suite runs on a similarly minimal image.
+
+== Still stuck
+
+Run `nvda-testkit doctor` — it reports the platform, whether the spy bundle
+is built, the launcher cache contents, and whether every NVDA channel
+currently resolves, without needing a full session to do it. A red `doctor`
+almost always means the environment, not the add-on under test.
