@@ -19,6 +19,7 @@ jobs:
   windows_coverage:
     name: Windows coverage
     runs-on: windows-2025
+    timeout-minutes: 20
     permissions:
       contents: read
     # Matches the scan job's guard: nothing consumes this artifact on fork PRs.
@@ -60,6 +61,7 @@ jobs:
   sonar:
     name: Sonar
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: ["windows_coverage"]
     permissions:
       contents: read

@@ -65,6 +65,7 @@ jobs:
       && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
     name: Acknowledge
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       pull-requests: read # needed to tell whether the PR is actually a fork
     outputs:
@@ -96,6 +97,7 @@ jobs:
     needs: acknowledge
     if: needs.acknowledge.outputs.is_cross_repository == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       pull-requests: read # needed by `gh pr view` to resolve the PR's current head
       actions: read # needed to find and download the matching coverage run's artifact

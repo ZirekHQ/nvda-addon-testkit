@@ -54,11 +54,11 @@ Use the pull request template. Link the issue with `Closes #N` in the PR body wh
 
 Releases are tag-driven, not version-bumped by hand — `pyproject.toml` has no `version` field. The `hatch-vcs` build hook derives the package version from the git tag at build time.
 
-1. Publish a GitHub Release from `main` with a `vX.Y.Z` tag (semver; pre-1.0 minor bumps may break the fixture API).
-2. `.github/workflows/publish.yml` picks up the `release: published` event, builds the sdist/wheel, and uploads to PyPI via Trusted Publishing — no token to rotate.
-
-No separate changelog file to update — Release Drafter maintains a draft release from merged PR titles/labels as you go; open the draft, set the tag, and publish it to trigger the step above.
+1. Run `prepare-release.yml` (Actions tab → **Prepare release** → Run workflow). Leave `new_tag` blank to let it compute the next version from Conventional Commit subjects since the last tag (`scripts/next-version.sh`); pass a `vX.Y.Z` value there instead to override it. Check `dry_run` to only see the computed version without tagging or publishing anything.
+2. The `release` environment gate requires a maintainer approval before anything happens — that's the human checkpoint, not the version computation.
+3. Once approved, `release.yml` tags `main` at the resolved commit, force-moves the `v<major>` tag consumers pin (README and GitHub Marketplace listings use `@v1`), and publishes the GitHub Release with auto-generated notes.
+4. That tag feeds `publish-python.yml`, which builds the sdist/wheel and uploads to PyPI via Trusted Publishing — no token to rotate.
 
 ### Why not fully automate this (conventional commits + semantic-release)?
 
-Considered and deliberately skipped. PRs are squash-merged, so main's history is already one commit per PR — parsing commit prefixes to categorize a release would just be a stricter, easier-to-typo restatement of what PR labels already give Release Drafter for free. More importantly, auto-bumping the version and auto-publishing on merge removes the last human checkpoint before something goes to PyPI, and pre-1.0 semver bumps (does this `feat:` deserve a minor, or does it actually break the fixture API?) are judgment calls a bot applies too mechanically at this stage. Worth revisiting if release volume ever makes the manual tag-and-publish step the actual bottleneck.
+The version bump itself *is* automated — computed from commit prefixes since the last tag. What's deliberately kept manual is the human approval gate before anything tags or publishes: pre-1.0 semver bumps (does this `feat:` deserve a minor, or does it actually break the fixture API?) are judgment calls worth a maintainer's eyes before they go to PyPI and the Marketplace. Worth revisiting if release volume ever makes that approval step the actual bottleneck.

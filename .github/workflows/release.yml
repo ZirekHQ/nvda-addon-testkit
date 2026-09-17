@@ -1,92 +1,33 @@
 name: Release
 
-# No version file to bump here -- hatch-vcs derives the package version from the git
-# tag (pyproject.toml), so there's no bump-PR diff for a merge gate the way sibling
-# repos have. workflow_dispatch plus the environment:release approval below substitute.
+# Tags a commit and publishes it. Invoked only by prepare-release.yml, whose
+# compute-version/approve jobs gate this one -- no trigger of its own.
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      new_tag:
-        description: "Override the vX.Y.Z tag"
-        required: false
+      version:
+        required: true
         type: string
-      dry_run:
-        description: "Dry Run: compute the version, tag nothing, publish nothing"
-        required: false
-        type: boolean
-        default: false
+      sha:
+        required: true
+        type: string
 
 permissions: {}
 
 jobs:
-  compute-version:
+  tag-and-release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      version: ${{ steps.next.outputs.version }}
-      sha: ${{ steps.resolve-sha.outputs.sha }}
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          ref: main
-          fetch-depth: 0
-          persist-credentials: false
-
-      # Exported so tag-and-publish tags/checks-out this exact commit rather than the dispatch's
-      # own github.sha -- main can move during approve's wait, and this checkout is the only
-      # thing pinning which commit the computed version actually describes.
-      - name: Resolve commit SHA
-        id: resolve-sha
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Compute next version
-        id: next
-        env:
-          NEW_TAG: ${{ inputs.new_tag }}
-        run: |
-          set -euo pipefail
-          if [ -n "${NEW_TAG:-}" ]; then
-            version="${NEW_TAG#v}"
-            if ! echo "$version" | grep -qE '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
-              echo "::error::new_tag '${NEW_TAG}' doesn't look like a vX.Y.Z tag" >&2
-              exit 1
-            fi
-          else
-            version="$(bash scripts/next-version.sh)"
-          fi
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "Computed v${version}"
-
-  approve:
-    name: Approve release
-    needs: compute-version
-    if: inputs.dry_run != true
-    runs-on: ubuntu-latest
-    environment: release
-    permissions: {}
-    steps:
-      - env:
-          VERSION: ${{ needs.compute-version.outputs.version }}
-        run: echo "Approved v${VERSION} for release"
-
-  tag-and-publish:
-    name: Tag and publish
-    needs: [compute-version, approve]
-    if: "always() && inputs.dry_run != true && needs.compute-version.result == 'success' && needs.approve.result == 'success'"
-    runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     env:
-      VERSION: ${{ needs.compute-version.outputs.version }}
-      SHA: ${{ needs.compute-version.outputs.sha }}
+      VERSION: ${{ inputs.version }}
+      SHA: ${{ inputs.sha }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      # Pinned to compute-version's resolved SHA, not the implicit github.sha -- see that job's
-      # "Resolve commit SHA" step for why.
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          ref: ${{ needs.compute-version.outputs.sha }}
+          ref: ${{ inputs.sha }}
           persist-credentials: true
 
       - name: Push release tag
@@ -115,8 +56,8 @@ jobs:
             exit 1
           fi
 
-      # README documents `uses: zirekhq/nvda-addon-testkit@v1` -- this step keeps that
-      # moving tag pointed at the latest release in its major line.
+      # README documents `uses: zirekhq/nvda-addon-testkit@v1`, and GitHub Marketplace
+      # consumers pin the same tag -- this step keeps it on the latest release in its major line.
       - name: Move major version tag
         run: |
           set -euo pipefail
@@ -124,31 +65,23 @@ jobs:
           git tag -fa "$major" -m "$major" "$SHA"
           git push origin "$major" --force
 
-      - name: Publish release-drafter's draft against this tag
-        # Matched by draft:true (release-drafter keeps exactly one rolling draft), not by its
-        # $RESOLVED_VERSION tag-template placeholder, which a maintainer previously filled in
-        # by hand and this step now does instead.
+      - name: Publish GitHub Release
+        # Replaces the release-drafter draft this step used to patch to non-draft --
+        # --generate-notes computes the same changelog from merged PRs on demand instead.
         run: |
           set -euo pipefail
-          draft_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq '[.[] | select(.draft == true)] | first | .id')"
-          if [ -z "$draft_id" ] || [ "$draft_id" = "null" ]; then
-            echo "::error::No release-drafter draft found to publish -- check release-drafter.yml ran on main" >&2
-            exit 1
-          fi
-          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${draft_id}" \
-            -f tag_name="v${VERSION}" \
-            -f target_commitish="main" \
-            -F draft=false
+          gh release create "v${VERSION}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${SHA}" \
+            --title "v${VERSION}" \
+            --generate-notes
 
   pypi:
     name: PyPI
-    needs: [compute-version, tag-and-publish]
+    needs: tag-and-release
     permissions:
       contents: read
       id-token: write
-    # A release published via the default GITHUB_TOKEN doesn't re-trigger publish.yml's
-    # release:published listener (GitHub suppresses that recursion), so this calls it directly
-    # instead -- pinned to the tag just pushed, not main, which could move in the meantime.
-    uses: ./.github/workflows/publish.yml # zizmor: ignore[self-repository] low-severity style suggestion (use '$/...'), not a finding -- zizmor.yml doesn't pin a CLI version to confirm '$/' support
+    uses: ./.github/workflows/publish-python.yml # zizmor: ignore[self-repository] low-severity style suggestion (use '$/...'), not a finding -- zizmor.yml doesn't pin a CLI version to confirm '$/' support
     with:
-      ref: v${{ needs.compute-version.outputs.version }}
+      ref: v${{ inputs.version }}

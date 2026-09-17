@@ -33,6 +33,7 @@ jobs:
   windows_coverage:
     name: Windows coverage for fork scan
     runs-on: windows-2025
+    timeout-minutes: 20
     permissions:
       contents: read
     if: github.event.pull_request.head.repo.full_name != github.repository
@@ -69,6 +70,7 @@ jobs:
   coverage:
     name: Build coverage for fork scan
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: ["windows_coverage"]
     permissions:
       contents: read

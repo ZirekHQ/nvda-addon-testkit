@@ -13,6 +13,7 @@ jobs:
   zizmor:
     name: Run zizmor
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       security-events: write # required for upload-sarif to upload SARIF files
       contents: read

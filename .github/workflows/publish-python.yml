@@ -1,4 +1,4 @@
-name: Publish
+name: Publish Python
 
 on:
   release:
@@ -15,14 +15,15 @@ on:
 permissions: {}
 
 jobs:
-  # github.event_name mirrors the CALLING workflow's own trigger event inside a workflow_call
-  # (release.yml's workflow_dispatch makes this 'workflow_dispatch' here too) -- workflow_ref
-  # stays bound to the top-level caller, so this checks that instead of event_name alone.
+  # github.event_name mirrors the CALLING workflow's trigger through a workflow_call
+  # (prepare-release.yml's dispatch shows up as 'workflow_dispatch' here too) -- workflow_ref
+  # stays bound to the top-level caller, so this checks that, not event_name alone.
   gate:
     if: >-
       github.event_name == 'workflow_dispatch' &&
-      startsWith(github.workflow_ref, format('{0}/.github/workflows/publish.yml@', github.repository))
+      startsWith(github.workflow_ref, format('{0}/.github/workflows/publish-python.yml@', github.repository))
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     environment: release
     permissions: {}
     steps:
@@ -32,6 +33,7 @@ jobs:
     needs: gate
     if: always() && (needs.gate.result == 'success' || needs.gate.result == 'skipped')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -63,6 +65,7 @@ jobs:
     # is legitimately skipped there, not succeeded.
     if: always() && needs.build.result == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment: pypi
     permissions:
       id-token: write
