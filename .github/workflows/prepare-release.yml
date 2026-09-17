@@ -1,0 +1,85 @@
+name: Prepare release
+
+# The single dispatch surface for cutting a release. hatch-vcs derives the version from the
+# git tag (pyproject.toml), so there's no version file to bump or PR to open first -- the
+# environment:release approval gate below is the human checkpoint instead.
+on:
+  workflow_dispatch:
+    inputs:
+      new_tag:
+        description: "Override the vX.Y.Z tag"
+        required: false
+        type: string
+      dry_run:
+        description: "Dry Run: compute the version, tag nothing, publish nothing"
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  compute-version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+      sha: ${{ steps.resolve-sha.outputs.sha }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Exported so release.yml tags/checks-out this exact commit rather than the dispatch's
+      # own github.sha -- main can move during approve's wait, and this checkout is the only
+      # thing pinning which commit the computed version actually describes.
+      - name: Resolve commit SHA
+        id: resolve-sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Compute next version
+        id: next
+        env:
+          NEW_TAG: ${{ inputs.new_tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${NEW_TAG:-}" ]; then
+            version="${NEW_TAG#v}"
+            if ! echo "$version" | grep -qE '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+              echo "::error::new_tag '${NEW_TAG}' doesn't look like a vX.Y.Z tag" >&2
+              exit 1
+            fi
+          else
+            version="$(bash scripts/next-version.sh)"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Computed v${version}"
+
+  approve:
+    name: Approve release
+    needs: compute-version
+    if: inputs.dry_run != true && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    permissions: {}
+    steps:
+      - env:
+          VERSION: ${{ needs.compute-version.outputs.version }}
+        run: echo "Approved v${VERSION} for release"
+
+  release-now:
+    name: Release
+    needs: [compute-version, approve]
+    if: always() && needs.compute-version.result == 'success' && needs.approve.result == 'success'
+    permissions:
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/release.yml # zizmor: ignore[self-repository] low-severity style suggestion (use '$/...'), not a finding -- zizmor.yml doesn't pin a CLI version to confirm '$/' support
+    with:
+      version: ${{ needs.compute-version.outputs.version }}
+      sha: ${{ needs.compute-version.outputs.sha }}
