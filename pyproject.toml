@@ -44,6 +44,9 @@ nvda_testkit = "nvda_testkit.plugin"
 [tool.hatch.version]
 source = "vcs"
 
+[tool.setuptools_scm]
+tag.strict = true
+
 [tool.hatch.build.hooks.vcs]
 version-file = "src/nvda_testkit/_version.py"
 
