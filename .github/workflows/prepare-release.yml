@@ -3,6 +3,12 @@ name: Prepare release
 # The single dispatch surface for cutting a release. hatch-vcs derives the version from the
 # git tag (pyproject.toml), so there's no version file to bump or PR to open first -- the
 # environment:release approval gate below is the human checkpoint instead.
+#
+# tag-and-release and pypi live here rather than in a separate workflow_call file: PyPI's
+# trusted-publisher attestation check verifies the Build Config URI against the *root*
+# dispatched workflow, not the immediate caller, so a second layer of workflow_call between
+# this dispatch and publish-python.yml breaks it (confirmed by three failed release runs
+# where the Build Config URI reported the wrong workflow entirely).
 on:
   workflow_dispatch:
     inputs:
@@ -34,7 +40,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # Exported so release.yml tags/checks-out this exact commit rather than the dispatch's
+      # Exported so tag-and-release tags/checks-out this exact commit rather than the dispatch's
       # own github.sha -- main can move during approve's wait, and this checkout is the only
       # thing pinning which commit the computed version actually describes.
       - name: Resolve commit SHA
@@ -72,14 +78,77 @@ jobs:
           VERSION: ${{ needs.compute-version.outputs.version }}
         run: echo "Approved v${VERSION} for release"
 
-  release-now:
-    name: Release
+  tag-and-release:
     needs: [compute-version, approve]
     if: always() && needs.compute-version.result == 'success' && needs.approve.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
+    env:
+      VERSION: ${{ needs.compute-version.outputs.version }}
+      SHA: ${{ needs.compute-version.outputs.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.compute-version.outputs.sha }}
+          persist-credentials: true
+
+      - name: Push release tag
+        # Checked against origin (shallow fetch), not the local clone. An annotated tag peels to
+        # the commit SHA via a separate `^{}`-suffixed query -- ls-remote only returns that line
+        # when asked for it by name, so one unsuffixed query can't tell the two cases apart.
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          existing="$(git ls-remote origin "refs/tags/v${VERSION}^{}" | cut -f1)"
+          if [ -z "$existing" ]; then
+            existing="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"
+          fi
+          if [ -n "$existing" ]; then
+            if [ "$existing" != "$SHA" ]; then
+              echo "::error::v${VERSION} already exists on origin and points at ${existing}, not this commit (${SHA})" >&2
+              exit 1
+            fi
+            echo "v${VERSION} already exists on origin and points at this commit -- reusing it"
+          elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            git tag "v${VERSION}"
+            git push origin "v${VERSION}"
+          else
+            echo "::error::Refusing to create v${VERSION} from ${GITHUB_REF} -- release tags are only created from main" >&2
+            exit 1
+          fi
+
+      # README documents `uses: zirekhq/nvda-addon-testkit@v1`, and GitHub Marketplace
+      # consumers pin the same tag -- this step keeps it on the latest release in its major line.
+      - name: Move major version tag
+        run: |
+          set -euo pipefail
+          major="v${VERSION%%.*}"
+          git tag -fa "$major" -m "$major" "$SHA"
+          git push origin "$major" --force
+
+      - name: Publish GitHub Release
+        # Replaces the release-drafter draft this step used to patch to non-draft --
+        # --generate-notes computes the same changelog from merged PRs on demand instead.
+        run: |
+          set -euo pipefail
+          if ! gh release view "v${VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release create "v${VERSION}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --target "${SHA}" \
+              --title "v${VERSION}" \
+              --generate-notes
+          fi
+
+  pypi:
+    name: PyPI
+    needs: [compute-version, tag-and-release]
+    permissions:
+      contents: read
       id-token: write
-    uses: ./.github/workflows/release.yml # zizmor: ignore[self-repository] low-severity style suggestion (use '$/...'), not a finding -- zizmor.yml doesn't pin a CLI version to confirm '$/' support
+    uses: ./.github/workflows/publish-python.yml # zizmor: ignore[self-repository] low-severity style suggestion (use '$/...'), not a finding -- zizmor.yml doesn't pin a CLI version to confirm '$/' support
     with:
-      version: ${{ needs.compute-version.outputs.version }}
-      sha: ${{ needs.compute-version.outputs.sha }}
+      ref: v${{ needs.compute-version.outputs.version }}
