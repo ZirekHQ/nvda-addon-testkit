@@ -44,6 +44,16 @@ nvda_testkit = "nvda_testkit.plugin"
 [tool.hatch.version]
 source = "vcs"
 
+# hatch-vcs calls setuptools_scm's plain get_version(**raw-options) API, which has no
+# tag.strict param (that's only read from a [tool.setuptools_scm] table by a different,
+# unused entry point) -- so `git describe` defaults to the permissive `*[0-9]*` match glob
+# and picks whichever of the floating major tag (e.g. v0, moved by release.yml on every
+# release) or the real vX.Y.Z tag was pointed at HEAD's ancestor most recently, silently
+# truncating the version. Forcing the describe command's --match glob to require a dot
+# excludes the major tag from candidacy.
+[tool.hatch.version.raw-options]
+git_describe_command = "git describe --dirty --tags --long --match *[0-9]*.*[0-9]*"
+
 [tool.hatch.build.hooks.vcs]
 version-file = "src/nvda_testkit/_version.py"
 

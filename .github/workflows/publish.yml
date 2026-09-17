@@ -58,6 +58,10 @@ jobs:
 
   publish:
     needs: build
+    # Without this, publish silently no-ops on the release.yml call path: its default
+    # success() check walks the whole ancestor chain, and gate (an ancestor via build)
+    # is legitimately skipped there, not succeeded.
+    if: always() && needs.build.result == 'success'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
