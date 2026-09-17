@@ -78,3 +78,8 @@ jobs:
       # pinning trades that auto-patching for the blanket pinning policy --
       # bump this SHA by hand if pypa/gh-action-pypi-publish ships a fix.
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        with:
+          # PyPI doesn't support reusable workflows as a Trusted Publisher (pypi/warehouse#11096):
+          # this job runs via workflow_call from prepare-release.yml, so the attestation's Build
+          # Config URI is the caller, not this file, and PyPI rejects it. Drop once that's fixed.
+          attestations: false
