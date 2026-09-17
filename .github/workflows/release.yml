@@ -70,11 +70,13 @@ jobs:
         # --generate-notes computes the same changelog from merged PRs on demand instead.
         run: |
           set -euo pipefail
-          gh release create "v${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --target "${SHA}" \
-            --title "v${VERSION}" \
-            --generate-notes
+          if ! gh release view "v${VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release create "v${VERSION}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --target "${SHA}" \
+              --title "v${VERSION}" \
+              --generate-notes
+          fi
 
   pypi:
     name: PyPI

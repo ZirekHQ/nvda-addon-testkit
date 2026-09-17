@@ -62,7 +62,7 @@ jobs:
   approve:
     name: Approve release
     needs: compute-version
-    if: inputs.dry_run != true
+    if: inputs.dry_run != true && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: release
