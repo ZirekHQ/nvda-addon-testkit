@@ -1,7 +1,7 @@
 """nvda.addons -- add-on install lifecycle.
 
 Installation is two-phase, and that is exposed rather than hidden: install()
-leaves the add-on PENDING_INSTALL, and only nvda.restart() makes it ENABLED.
+leaves the add-on PENDING_INSTALL, and only nvda.restart_harness() makes it ENABLED.
 A test of installTasks.onInstall depends on being able to see both halves.
 """
 

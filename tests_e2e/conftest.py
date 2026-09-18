@@ -65,3 +65,9 @@ def check_no_unexpected_errors(client, *, since: int = 0) -> None:
 @pytest.fixture
 def assert_no_unexpected_errors():
     return check_no_unexpected_errors
+
+
+@pytest.fixture
+def require_eval(pytestconfig):
+    if not pytestconfig.option.nvda_allow_eval:
+        pytest.skip("needs --nvda-allow-eval")

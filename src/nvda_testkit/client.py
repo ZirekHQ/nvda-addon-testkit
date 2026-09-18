@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from typing import Any
 
-from .errors import TestkitError
+from .errors import ConnectionLost, TestkitError
 from .namespaces.addons import AddonsNamespace
 from .namespaces.braille import BrailleNamespace
 from .namespaces.config import ConfigNamespace
@@ -86,12 +87,44 @@ class NvdaClient:
         if failures:
             raise TestkitError("reset() failed for " + "; ".join(failures))
 
-    def restart(self, *, timeout: float = 60.0) -> None:
+    def restart_harness(self, *, timeout: float = 60.0) -> None:
+        """Kill and relaunch the NVDA process. Does not exercise NVDA's own
+        core.restart() -- see restart_nvda() for that."""
         handshake = self._process.restart(timeout=timeout)
         self._rpc.close()
         self._attach(
             RpcClient.from_handshake(
                 handshake,
+                token=self._process.token,
+                timeout_scale=self._settings.timeout_scale,
+            )
+        )
+
+    def restart_nvda(self, *, timeout: float = 60.0) -> None:
+        """Trigger NVDA's own core.restart() and wait for its replacement
+        process to announce itself. Requires allow_eval, since it is built
+        on eval() internally. Use this, not restart_harness(), to verify
+        behavior that lives in NVDA's real self-relaunch path."""
+        if not self._settings.allow_eval:
+            raise TestkitError(
+                "nvda.restart_nvda() is disabled. It runs arbitrary code inside NVDA, so it is "
+                "opt-in: pass --nvda-allow-eval, or set allow-eval = true under "
+                "[tool.nvda-testkit]."
+            )
+        handshake = self._process.handshake
+        if handshake is None:
+            raise TestkitError("NVDA is not running; nothing to restart.")
+        old_pid = handshake.pid
+        self._process.handshake_path.unlink(missing_ok=True)
+        with contextlib.suppress(ConnectionLost):
+            self.eval("__import__('core').restart()")
+        new_handshake = self._process.adopt_relaunched_handshake(
+            exclude_pid=old_pid, timeout=timeout
+        )
+        self._rpc.close()
+        self._attach(
+            RpcClient.from_handshake(
+                new_handshake,
                 token=self._process.token,
                 timeout_scale=self._settings.timeout_scale,
             )
@@ -105,6 +138,15 @@ class NvdaClient:
                 "[tool.nvda-testkit]."
             )
         return self._rpc.call("eval_in_nvda", source)
+
+    def exec(self, source: str) -> Any:
+        if not self._settings.allow_eval:
+            raise TestkitError(
+                "nvda.exec() is disabled. It runs arbitrary code inside NVDA, so it is "
+                "opt-in: pass --nvda-allow-eval, or set allow-eval = true under "
+                "[tool.nvda-testkit]."
+            )
+        return self._rpc.call("exec_in_nvda", source)
 
     def close(self) -> None:
         self._rpc.close()

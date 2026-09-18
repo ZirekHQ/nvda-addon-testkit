@@ -45,3 +45,41 @@ def test_containers_are_flattened_into_something_xmlrpc_can_carry(api):
 def test_a_raising_expression_propagates(api):
     with pytest.raises(ZeroDivisionError):
         api.eval_in_nvda("1 / 0")
+
+
+def test_exec_it_is_registered_under_the_name_the_host_calls(event_queue):
+    from nvda_testkit_spy import eval_api  # noqa: F401
+    from nvda_testkit_spy.registry import METHODS
+
+    assert "exec_in_nvda" in METHODS
+
+
+def test_exec_runs_multiple_statements(api):
+    result = api.exec_in_nvda("x = 1\ny = 2\n__result__ = x + y")
+    assert result == 3
+
+
+def test_exec_without_a_result_binding_returns_none(api):
+    assert api.exec_in_nvda("x = 1") is None
+
+
+def test_exec_has_real_builtins_and_imports(api):
+    result = api.exec_in_nvda("import math\n__result__ = math.floor(3.7)")
+    assert result == 3
+
+
+def test_exec_a_syntax_error_raises_syntaxerror(api):
+    with pytest.raises(SyntaxError):
+        api.exec_in_nvda("def broken(:\n    pass")
+
+
+def test_exec_a_nested_function_can_see_top_level_names(api):
+    result = api.exec_in_nvda(
+        "vals = [1, 2, 3]\ndef total():\n    return sum(vals)\n__result__ = total()"
+    )
+    assert result == 6
+
+
+def test_exec_a_runtime_error_propagates(api):
+    with pytest.raises(ZeroDivisionError):
+        api.exec_in_nvda("__result__ = 1 / 0")

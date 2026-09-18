@@ -1,4 +1,5 @@
 import threading
+import time
 
 import pytest
 
@@ -62,3 +63,36 @@ def test_a_failure_after_the_caller_timed_out_is_logged(event_queue):
 
     event_queue.drain()
     logHandler.log.exception.assert_called_once()
+
+
+def test_a_never_drained_queue_times_out_saying_it_never_started(event_queue):
+    from nvda_testkit_spy.mainthread import run_on_main_thread
+
+    event_queue.auto_drain = False
+    with pytest.raises(TimeoutError, match="never started"):
+        run_on_main_thread(lambda: None, timeout=0.2)
+
+
+def test_a_job_that_starts_but_hangs_times_out_saying_it_started(event_queue):
+    from nvda_testkit_spy.mainthread import run_on_main_thread
+
+    event_queue.auto_drain = False
+
+    def hang():
+        time.sleep(0.4)
+
+    result = {}
+
+    def worker():
+        try:
+            run_on_main_thread(hang, timeout=0.15)
+        except TimeoutError as error:
+            result["error"] = error
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    while event_queue.empty():
+        time.sleep(0.01)
+    event_queue.drain()  # runs `hang` right here, on this (the "main") thread
+    thread.join(timeout=5)
+    assert "did not return" in str(result["error"])

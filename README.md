@@ -67,6 +67,18 @@ still on Extended Security Updates).
 | `nvda.log` | structured log records, and `assert_no_errors()` |
 | `nvda.addons` | two-phase install, remove, and state |
 
+`nvda.eval()` runs a single expression inside NVDA; `nvda.exec()` runs a
+full multi-statement scenario and returns whatever it binds to
+`__result__`. Both need `--nvda-allow-eval`. A bad scenario raises
+`ScenarioSyntaxError`, so catching bare `except Exception: pass` around
+either call still swallows it — catch the types you expect instead.
+
+`nvda.restart_harness()` kills and relaunches the NVDA process — use it to
+finish a two-phase add-on install or reset to a clean process. It does not
+exercise NVDA's own restart logic. For that, use `nvda.restart_nvda()`,
+which triggers NVDA's real `core.restart()` and waits for the replacement
+process — needs `--nvda-allow-eval`, since it is built on `nvda.eval()`.
+
 ## Requirements
 
 Windows to run the tests. NVDA is downloaded automatically — you do not need

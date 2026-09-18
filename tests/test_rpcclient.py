@@ -3,7 +3,7 @@ import xmlrpc.client
 
 import pytest
 
-from nvda_testkit.errors import AuthError, RpcError, WaitTimeout
+from nvda_testkit.errors import AuthError, ConnectionLost, RpcError, WaitTimeout
 from nvda_testkit.process import NvdaProcess
 from nvda_testkit.rpcclient import RpcClient
 
@@ -115,6 +115,28 @@ def test_protocol_error_is_translated_to_rpc_error(client, monkeypatch):
         client.call("test_method")
     assert not isinstance(excinfo.value, AuthError)
     assert "500" in str(excinfo.value)
+
+
+def test_protocol_error_is_specifically_a_connection_lost(client, monkeypatch):
+    """A transport-level failure is a ConnectionLost, distinct from a real
+    application-level RpcError from a Fault -- restart_nvda() depends on
+    only suppressing this narrower type."""
+
+    def raise_protocol_error(*args, **kwargs):
+        raise xmlrpc.client.ProtocolError("127.0.0.1:1/RPC2", 500, "Internal Server Error", {})
+
+    monkeypatch.setattr(client._proxy, "test_method", raise_protocol_error)
+    with pytest.raises(ConnectionLost):
+        client.call("test_method")
+
+
+def test_an_oserror_is_specifically_a_connection_lost(client, monkeypatch):
+    def raise_oserror(*args, **kwargs):
+        raise ConnectionResetError("connection reset by peer")
+
+    monkeypatch.setattr(client._proxy, "test_method", raise_oserror)
+    with pytest.raises(ConnectionLost):
+        client.call("test_method")
 
 
 def test_socket_timeout_is_finite_and_applied():

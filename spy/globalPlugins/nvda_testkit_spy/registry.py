@@ -22,7 +22,9 @@ class Dispatcher:
     Faults are raised as plain exceptions; SimpleXMLRPCServer turns them into
     Faults whose faultString is "<Type>: <message>". The host matches on the
     "AUTH:" prefix, so those two strings are a wire contract -- do not reword
-    them without changing rpcclient.py.
+    them without changing rpcclient.py. The "<TypeName>: <message>" shape of
+    that faultString is part of the same contract: rpcclient.py reads the type
+    name back out of it to recognise a SyntaxError as ScenarioSyntaxError.
     """
 
     def __init__(self, token):

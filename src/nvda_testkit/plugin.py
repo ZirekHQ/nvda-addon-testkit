@@ -78,7 +78,7 @@ def nvda_session(_nvda_provisioned, nvda_settings) -> NvdaClient:
 @pytest.fixture
 def nvda(request: pytest.FixtureRequest, nvda_session: NvdaClient) -> NvdaClient:
     if request.node.get_closest_marker("fresh_nvda"):
-        nvda_session.restart()
+        nvda_session.restart_harness()
     nvda_session.reset()
     return nvda_session
 
@@ -128,5 +128,5 @@ def addon_bundle(nvda_settings) -> Path:
 def addon_under_test(nvda_session: NvdaClient, addon_bundle: Path) -> Path:
     """The bundle, installed and enabled, with NVDA restarted to complete it."""
     nvda_session.addons.install(addon_bundle)
-    nvda_session.restart()
+    nvda_session.restart_harness()
     return addon_bundle

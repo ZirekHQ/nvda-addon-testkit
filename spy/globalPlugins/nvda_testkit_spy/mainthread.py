@@ -24,8 +24,10 @@ def run_on_main_thread(fn, timeout=DEFAULT_TIMEOUT):
     outcome = {"value": _MISSING, "error": None}
     finished = threading.Event()
     timed_out = threading.Event()
+    started = threading.Event()
 
     def runner():
+        started.set()
         try:
             outcome["value"] = fn()
         except BaseException as error:  # NOSONAR -- forwarded verbatim, see raise below
@@ -38,9 +40,16 @@ def run_on_main_thread(fn, timeout=DEFAULT_TIMEOUT):
     queueHandler.queueFunction(queueHandler.eventQueue, runner)
     if not finished.wait(timeout):
         timed_out.set()
+        if started.is_set():
+            raise TimeoutError(
+                "%r started on NVDA's main thread but did not return "
+                "within %.1fs. It's hung, not queued behind something else."
+                % (getattr(fn, "__name__", fn), timeout)
+            )
         raise TimeoutError(
-            "Timed out after %.1fs waiting for NVDA's main thread to run %r. "
-            "NVDA is wedged or busy." % (timeout, getattr(fn, "__name__", fn))
+            "%r never started on NVDA's main thread within %.1fs. "
+            "The queue is backed up or NVDA is unresponsive to "
+            "queueFunction()." % (getattr(fn, "__name__", fn), timeout)
         )
     if outcome["error"] is not None:
         raise outcome["error"]

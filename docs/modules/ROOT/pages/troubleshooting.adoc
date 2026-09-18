@@ -63,7 +63,7 @@ the current one; clean it out or narrow the pattern.
 fails.
 
 Install is two-phase by design — `install()` only reaches
-`PENDING_INSTALL`; a call to `nvda.restart()` is what completes it. See
+`PENDING_INSTALL`; a call to `nvda.restart_harness()` is what completes it. See
 xref:guide/addons.adoc[].
 
 == Speech assertion mismatches

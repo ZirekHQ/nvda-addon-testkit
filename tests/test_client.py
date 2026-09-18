@@ -1,7 +1,9 @@
+import json
+
 import pytest
 
 from nvda_testkit.client import NvdaClient, NvdaVersion
-from nvda_testkit.errors import TestkitError
+from nvda_testkit.errors import ConnectionLost, ScenarioSyntaxError, TestkitError
 from nvda_testkit.process import NvdaProcess
 from nvda_testkit.rpcclient import RpcClient
 from nvda_testkit.settings import TestkitSettings
@@ -78,7 +80,7 @@ def test_reset_attempts_every_step_even_if_one_fails(client, monkeypatch):
     assert client.config.get(("speech", "synth")) == "espeak"
 
 
-def test_restart_rebuilds_namespaces_and_preserves_the_pre_restart_baseline(fake_nvda):
+def test_restart_harness_rebuilds_namespaces_and_preserves_the_pre_restart_baseline(fake_nvda):
     proc = NvdaProcess(
         fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
     )
@@ -92,7 +94,7 @@ def test_restart_rebuilds_namespaces_and_preserves_the_pre_restart_baseline(fake
 
         client.config.set(("speech", "synth"), "changed-before-restart")
 
-        client.restart(timeout=20)
+        client.restart_harness(timeout=20)
 
         assert client.rpc is not old_rpc
         assert client.process.handshake.pid != old_pid
@@ -100,6 +102,112 @@ def test_restart_rebuilds_namespaces_and_preserves_the_pre_restart_baseline(fake
 
         client.reset()
         assert client.config.get(("speech", "synth")) == "custom-baseline"
+    finally:
+        client.close()
+        proc.kill()
+
+
+def test_restart_nvda_requires_eval(client):
+    with pytest.raises(TestkitError, match="--nvda-allow-eval"):
+        client.restart_nvda(timeout=5)
+
+
+def test_restart_nvda_reports_a_testkiterror_when_nvda_is_not_running(fake_nvda):
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    client = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+    try:
+        proc._handshake = None
+        with pytest.raises(TestkitError, match="nothing to restart"):
+            client.restart_nvda(timeout=5)
+        assert proc.handshake_path.exists()
+    finally:
+        client.close()
+        proc._handshake = handshake
+        proc.kill()
+
+
+def test_restart_nvda_refuses_before_touching_the_handshake_file(fake_nvda):
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    client = NvdaClient(proc, rpc)
+    try:
+        with pytest.raises(TestkitError, match="--nvda-allow-eval"):
+            client.restart_nvda(timeout=5)
+        assert proc.handshake_path.exists()
+    finally:
+        client.close()
+        proc.kill()
+
+
+def test_restart_nvda_adopts_the_replacement_handshake(fake_nvda):
+    import threading
+    import time
+
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    client = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+    try:
+        old_pid = handshake.pid
+
+        def fake_core_restart(source):
+            assert "core" in source and "restart" in source
+
+            def relaunch():
+                time.sleep(0.2)
+                proc.handshake_path.write_text(
+                    json.dumps(
+                        {
+                            "port": handshake.port,
+                            "pid": old_pid + 1,
+                            "nvdaVersion": "2026.1.1",
+                            "apiVersion": "2026.1.1",
+                            "apiCompatTo": "2026.1.0",
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            threading.Thread(target=relaunch).start()
+            raise ConnectionLost("connection dropped mid-response, as a real restart would")
+
+        monkeypatch_target = client.eval
+        client.eval = fake_core_restart
+        try:
+            client.restart_nvda(timeout=5)
+        finally:
+            client.eval = monkeypatch_target
+
+        assert client.process.handshake.pid == old_pid + 1
+    finally:
+        client.close()
+        proc.kill()
+
+
+def test_restart_nvda_does_not_swallow_a_real_error_from_the_trigger_call(fake_nvda):
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    client = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+    try:
+
+        def fake_core_restart(source):
+            raise ScenarioSyntaxError("a real bug in the trigger source, not a dropped connection")
+
+        client.eval = fake_core_restart
+        with pytest.raises(ScenarioSyntaxError):
+            client.restart_nvda(timeout=5)
     finally:
         client.close()
         proc.kill()
@@ -119,5 +227,86 @@ def test_eval_works_when_allowed(fake_nvda):
     try:
         permissive = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
         assert permissive.eval("2 + 2") == 4
+    finally:
+        proc.kill()
+
+
+def test_exec_works_when_allowed(fake_nvda):
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    try:
+        permissive = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+        assert permissive.exec("x = 2\n__result__ = x * 3") == 6
+    finally:
+        proc.kill()
+
+
+def test_exec_lets_a_nested_function_see_top_level_names(fake_nvda):
+    """The fake must match the real spy's single-namespace exec() semantics
+    (tests_spy/test_eval_api.py's equivalent test), or a scoping regression
+    here would pass against the fake and fail against real NVDA."""
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    try:
+        permissive = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+        result = permissive.exec(
+            "vals = [1, 2, 3]\ndef total():\n    return sum(vals)\n__result__ = total()"
+        )
+        assert result == 6
+    finally:
+        proc.kill()
+
+
+def test_exec_is_refused_unless_explicitly_allowed(client):
+    with pytest.raises(TestkitError, match="--nvda-allow-eval"):
+        client.exec("x = 1")
+
+
+def test_a_syntax_error_in_exec_raises_scenariosyntaxerror(fake_nvda):
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    try:
+        permissive = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+        with pytest.raises(ScenarioSyntaxError):
+            permissive.exec("def broken(:\n    pass")
+    finally:
+        proc.kill()
+
+
+def test_a_syntax_error_in_eval_also_raises_scenariosyntaxerror(fake_nvda):
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    try:
+        permissive = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+        with pytest.raises(ScenarioSyntaxError):
+            permissive.eval("1 +")
+    finally:
+        proc.kill()
+
+
+def test_an_indentation_error_in_exec_also_raises_scenariosyntaxerror(fake_nvda):
+    """IndentationError/TabError are SyntaxError subclasses but have their own
+    __name__, so the wire-detection substring check must name them too."""
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    try:
+        permissive = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+        with pytest.raises(ScenarioSyntaxError):
+            permissive.exec("def f():\nreturn 1")
     finally:
         proc.kill()

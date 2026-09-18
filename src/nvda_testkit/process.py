@@ -97,6 +97,7 @@ class NvdaProcess:
         self._extra_env = dict(env or {})
         self._proc: subprocess.Popen | None = None
         self._handshake: Handshake | None = None
+        self._owns_current_process = True
 
     @property
     def handshake_path(self) -> Path:
@@ -108,7 +109,9 @@ class NvdaProcess:
 
     @property
     def is_running(self) -> bool:
-        return self._proc is not None and self._proc.poll() is None
+        if self._owns_current_process:
+            return self._proc is not None and self._proc.poll() is None
+        return self._handshake is not None
 
     def _environment(self) -> dict[str, str]:
         environment = dict(os.environ)
@@ -189,6 +192,7 @@ class NvdaProcess:
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.handshake_path.unlink(missing_ok=True)
         self._handshake = None
+        self._owns_current_process = True
         self._start_count += 1
         self._number_log_file()
 
@@ -221,6 +225,46 @@ class NvdaProcess:
             f"Log tail:\n{self.log_tail()}" + (f"\n\n{diagnostics}" if diagnostics else "")
         )
 
+    def adopt_relaunched_handshake(self, *, exclude_pid: int, timeout: float = 60) -> Handshake:
+        """Wait for NVDA's own replacement process to announce itself.
+
+        Unlike start(), this owns no subprocess handle to watch for an early
+        exit -- the process being waited for was not spawned by us, it was
+        spawned by the NVDA we are about to stop tracking via self._proc.
+        """
+        deadline_seconds = timeout * self.timeout_scale
+        deadline = time.monotonic() + deadline_seconds
+        while time.monotonic() < deadline:
+            if self.handshake_path.is_file():
+                try:
+                    payload = json.loads(self.handshake_path.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    time.sleep(_POLL_INTERVAL)
+                    continue
+                candidate = Handshake.from_payload(payload)
+                if candidate.pid != exclude_pid:
+                    self._handshake = candidate
+                    self._owns_current_process = False
+                    return candidate
+            time.sleep(_POLL_INTERVAL)
+        raise HandshakeTimeout(
+            f"NVDA never announced a replacement process within {deadline_seconds:.1f}s of "
+            f"restarting (still waiting on a pid other than {exclude_pid}). "
+            f"Expected {self.handshake_path}."
+        )
+
+    def _kill_pid(self, pid: int) -> None:
+        """Best-effort: terminate a process we did not spawn ourselves."""
+        if sys.platform != "win32":
+            return
+        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+            subprocess.run(
+                ["taskkill", "/PID", str(pid), "/F"],
+                capture_output=True,
+                check=False,
+                timeout=30,
+            )
+
     def _request_quit(self) -> None:
         if self._quit_via == "rpc":
             if self._handshake is None:
@@ -242,6 +286,11 @@ class NvdaProcess:
             )
 
     def quit(self, timeout: float = 30) -> None:
+        if not self._owns_current_process:
+            if self._handshake is not None:
+                self._kill_pid(self._handshake.pid)
+            self._handshake = None
+            return
         if self._proc is None:
             return
         if self._proc.poll() is not None:
@@ -259,6 +308,11 @@ class NvdaProcess:
         self.kill()
 
     def kill(self) -> None:
+        if not self._owns_current_process:
+            if self._handshake is not None:
+                self._kill_pid(self._handshake.pid)
+            self._handshake = None
+            return
         if self._proc is None:
             return
         if self._proc.poll() is None:
