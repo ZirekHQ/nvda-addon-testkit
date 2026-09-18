@@ -6,7 +6,7 @@ import contextlib
 from dataclasses import dataclass
 from typing import Any
 
-from .errors import TestkitError
+from .errors import ConnectionLost, TestkitError
 from .namespaces.addons import AddonsNamespace
 from .namespaces.braille import BrailleNamespace
 from .namespaces.config import ConfigNamespace
@@ -116,7 +116,7 @@ class NvdaClient:
             raise TestkitError("NVDA is not running; nothing to restart.")
         old_pid = handshake.pid
         self._process.handshake_path.unlink(missing_ok=True)
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(ConnectionLost):
             self.eval("__import__('core').restart()")
         new_handshake = self._process.adopt_relaunched_handshake(
             exclude_pid=old_pid, timeout=timeout

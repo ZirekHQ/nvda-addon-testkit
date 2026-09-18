@@ -232,7 +232,8 @@ class NvdaProcess:
         exit -- the process being waited for was not spawned by us, it was
         spawned by the NVDA we are about to stop tracking via self._proc.
         """
-        deadline = time.monotonic() + timeout * self.timeout_scale
+        deadline_seconds = timeout * self.timeout_scale
+        deadline = time.monotonic() + deadline_seconds
         while time.monotonic() < deadline:
             if self.handshake_path.is_file():
                 try:
@@ -247,7 +248,7 @@ class NvdaProcess:
                     return candidate
             time.sleep(_POLL_INTERVAL)
         raise HandshakeTimeout(
-            f"NVDA never announced a replacement process within {timeout:.1f}s of "
+            f"NVDA never announced a replacement process within {deadline_seconds:.1f}s of "
             f"restarting (still waiting on a pid other than {exclude_pid}). "
             f"Expected {self.handshake_path}."
         )

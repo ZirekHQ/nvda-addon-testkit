@@ -46,6 +46,11 @@ class AuthError(RpcError):
     """The spy rejected our token. Almost always a stale NVDA from a previous run."""
 
 
+class ConnectionLost(RpcError):
+    """The transport dropped before a response arrived -- expected when the
+    process answering the call is exiting (e.g. mid-restart)."""
+
+
 class ScenarioSyntaxError(RpcError):
     """`nvda.eval()`/`nvda.exec()` was given source that doesn't compile.
 

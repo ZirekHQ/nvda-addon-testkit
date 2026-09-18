@@ -231,8 +231,8 @@ class FakeSpy:
         return _marshallable(eval(source, {"__builtins__": builtins}, {}))
 
     def rpc_exec_in_nvda(self, source, timeout=30.0):
-        scope = {}
-        exec(compile(source, "<fake-nvda>", "exec"), {"__builtins__": builtins}, scope)
+        scope = {"__builtins__": builtins}
+        exec(compile(source, "<fake-nvda>", "exec"), scope)
         return _marshallable(scope.get("__result__"))
 
     def rpc_addons_install(self, bundle_path, timeout=120.0):

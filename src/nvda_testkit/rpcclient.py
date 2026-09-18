@@ -8,13 +8,14 @@ answering this run's questions.
 
 from __future__ import annotations
 
+import http.client
 import threading
 import time
 import xmlrpc.client
 from collections.abc import Callable
 from typing import Any
 
-from .errors import AuthError, RpcError, ScenarioSyntaxError, WaitTimeout
+from .errors import AuthError, ConnectionLost, RpcError, ScenarioSyntaxError, WaitTimeout
 from .process import Handshake
 
 _DEFAULT_INTERVAL = 0.05
@@ -71,18 +72,20 @@ class RpcClient:
                     "A stale NVDA from a previous run is the usual cause. "
                     f"Remote said: {message}"
                 ) from fault
-            if method in ("eval_in_nvda", "exec_in_nvda") and "SyntaxError" in message:
+            if method in ("eval_in_nvda", "exec_in_nvda") and any(
+                name in message for name in ("SyntaxError", "IndentationError", "TabError")
+            ):
                 raise ScenarioSyntaxError(
                     f"{method}() was given source that doesn't compile: {message}"
                 ) from fault
             raise RpcError(f"{method}() failed inside NVDA: {message}") from fault
         except xmlrpc.client.ProtocolError as error:
-            raise RpcError(
+            raise ConnectionLost(
                 f"The spy answered {method!r} with HTTP {error.errcode} "
                 f"{error.errmsg} at {error.url}."
             ) from error
-        except OSError as error:
-            raise RpcError(
+        except (OSError, http.client.HTTPException) as error:
+            raise ConnectionLost(
                 f"Could not reach the spy on 127.0.0.1:{self.port} calling {method!r}. "
                 "NVDA has probably died. "
                 f"Transport error: {error}"
