@@ -67,6 +67,10 @@ still on Extended Security Updates).
 | `nvda.log` | structured log records, and `assert_no_errors()` |
 | `nvda.addons` | two-phase install, remove, and state |
 
+`nvda.eval()` runs a single expression inside NVDA; `nvda.exec()` runs a
+full multi-statement scenario and returns whatever it binds to
+`__result__`. Both need `--nvda-allow-eval`.
+
 `nvda.restart_harness()` kills and relaunches the NVDA process — use it to
 finish a two-phase add-on install or reset to a clean process. It does not
 exercise NVDA's own restart logic. For that, use `nvda.restart_nvda()`,
