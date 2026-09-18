@@ -1,4 +1,5 @@
 import json
+import time
 
 import pytest
 
@@ -266,6 +267,85 @@ def test_exec_lets_a_nested_function_see_top_level_names(fake_nvda):
 def test_exec_is_refused_unless_explicitly_allowed(client):
     with pytest.raises(TestkitError, match="--nvda-allow-eval"):
         client.exec("x = 1")
+
+
+def test_exec_nowait_runs_the_scenario_when_allowed(fake_nvda):
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    try:
+        permissive = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+        assert permissive.exec_nowait("x = 1") is None
+    finally:
+        proc.kill()
+
+
+def test_exec_nowait_is_refused_unless_explicitly_allowed(client):
+    with pytest.raises(TestkitError, match="--nvda-allow-eval"):
+        client.exec_nowait("x = 1")
+
+
+def test_exec_nowait_does_not_wait_for_a_slow_scenario(fake_nvda):
+    """The call returns immediately even though the scenario itself sleeps
+    -- proof the fake defers to its background worker rather than running
+    inline, which would otherwise block this single-threaded RPC server."""
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    try:
+        permissive = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+        started = time.monotonic()
+        permissive.exec_nowait("import time\ntime.sleep(2)")
+        assert time.monotonic() - started < 1
+    finally:
+        proc.kill()
+
+
+def test_exec_nowait_records_a_runtime_error_instead_of_raising(fake_nvda):
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    try:
+        permissive = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+        permissive.exec_nowait("1 / 0")
+        deadline = time.monotonic() + 5
+        errors = []
+        while time.monotonic() < deadline:
+            errors = rpc.call("nowait_errors")
+            if errors:
+                break
+            time.sleep(0.05)
+        assert errors == ["ZeroDivisionError: division by zero"]
+    finally:
+        proc.kill()
+
+
+def test_simulate_modal_sends_the_gesture_and_needs_no_eval_flag(client):
+    """Unlike exec()/eval(), simulate_modal() runs no arbitrary code -- it
+    injects one keystroke, the same trust level as keys.press() -- so it
+    works on the plain `client` fixture (allow_eval left at its default)."""
+    assert client.simulate_modal("yes", timeout=1) is True
+    assert client._rpc.call("modal_calls") == [{"gesture": "yes", "timeout": 1}]
+
+
+def test_simulate_modal_reports_a_timeout_as_false_not_an_exception(fake_nvda):
+    fake_nvda.script(simulate_modal_result=False)
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    try:
+        instance = NvdaClient(proc, rpc)
+        assert instance.simulate_modal("enter", timeout=1) is False
+    finally:
+        proc.kill()
 
 
 def test_a_syntax_error_in_exec_raises_scenariosyntaxerror(fake_nvda):

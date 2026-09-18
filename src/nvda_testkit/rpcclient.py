@@ -72,7 +72,7 @@ class RpcClient:
                     "A stale NVDA from a previous run is the usual cause. "
                     f"Remote said: {message}"
                 ) from fault
-            if method in ("eval_in_nvda", "exec_in_nvda") and any(
+            if method in ("eval_in_nvda", "exec_in_nvda", "exec_in_nvda_nowait") and any(
                 name in message for name in ("SyntaxError", "IndentationError", "TabError")
             ):
                 raise ScenarioSyntaxError(

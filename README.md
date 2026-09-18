@@ -79,6 +79,13 @@ exercise NVDA's own restart logic. For that, use `nvda.restart_nvda()`,
 which triggers NVDA's real `core.restart()` and waits for the replacement
 process — needs `--nvda-allow-eval`, since it is built on `nvda.eval()`.
 
+A real `wx.Dialog.ShowModal()` never returns control to any of the above —
+NVDA's main-thread queue doesn't drain while one is up. Open it with
+`nvda.exec_nowait()` instead of `exec()` (queues the scenario without
+waiting for it to finish), then close it with `nvda.simulate_modal(gesture,
+timeout=10.0)`, which sends real injected keyboard input once our process
+takes the foreground.
+
 ## Requirements
 
 Windows to run the tests. NVDA is downloaded automatically — you do not need

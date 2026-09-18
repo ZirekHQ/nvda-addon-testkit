@@ -15,6 +15,7 @@ import builtins
 import hmac
 import json
 import os
+import queue
 import shutil
 import sys
 import tempfile
@@ -56,9 +57,28 @@ class FakeSpy:
             "braille": {"display": "noBraille"},
         }
         self._log: list[dict] = []
+        self._modal_calls: list[dict] = []
+        self._nowait_errors: list[str] = []
         self._addons: dict[str, dict] = {}
         self._load_addons()
         self.stop_requested = threading.Event()
+        # One tracked, serial worker -- not a thread per call -- mirroring
+        # the real spy's single main-thread queue closely enough that a
+        # scenario relying on FIFO ordering behaves the same against either.
+        self._nowait_queue: queue.Queue = queue.Queue()
+        self._nowait_worker = threading.Thread(target=self._drain_nowait_queue, daemon=True)
+        self._nowait_worker.start()
+
+    def _drain_nowait_queue(self) -> None:
+        while True:
+            code = self._nowait_queue.get()
+            if code is None:
+                return
+            try:
+                exec(code, {"__builtins__": builtins})
+            except Exception as error:
+                with self._lock:
+                    self._nowait_errors.append(f"{type(error).__name__}: {error}")
 
     def _load_addons(self) -> None:
         """Mirror NVDA's own .pendingInstall handling: state survives a real
@@ -234,6 +254,27 @@ class FakeSpy:
         scope = {"__builtins__": builtins}
         exec(compile(source, "<fake-nvda>", "exec"), scope)
         return _marshallable(scope.get("__result__"))
+
+    def rpc_exec_in_nvda_nowait(self, source):
+        # Compiled here, synchronously, so a SyntaxError still surfaces on
+        # this call -- only running it is deferred to the worker, matching
+        # the real spy's exec_in_nvda_nowait contract.
+        code = compile(source, "<fake-nvda>", "exec")
+        self._nowait_queue.put(code)
+        return True
+
+    def rpc_nowait_errors(self):
+        with self._lock:
+            return list(self._nowait_errors)
+
+    def rpc_simulate_modal(self, gesture="enter", timeout=10.0):
+        with self._lock:
+            self._modal_calls.append({"gesture": gesture, "timeout": timeout})
+        return bool(self._script.get("simulate_modal_result", True))
+
+    def rpc_modal_calls(self):
+        with self._lock:
+            return list(self._modal_calls)
 
     def rpc_addons_install(self, bundle_path, timeout=120.0):
         entry = {"name": "demo-addon", "version": "1.0.0", "state": "PENDING_INSTALL"}

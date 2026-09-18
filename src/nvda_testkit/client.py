@@ -148,5 +148,32 @@ class NvdaClient:
             )
         return self._rpc.call("exec_in_nvda", source)
 
+    def exec_nowait(self, source: str) -> None:
+        """Queue a scenario on NVDA's main thread without waiting for it to
+        finish. Use this, not exec(), for a scenario that opens a real modal
+        dialog -- exec() would block this process's single-threaded RPC
+        server for the dialog's whole lifetime, so a paired simulate_modal()
+        call could never even be dispatched to close it."""
+        if not self._settings.allow_eval:
+            raise TestkitError(
+                "nvda.exec_nowait() is disabled. It runs arbitrary code inside NVDA, so it "
+                "is opt-in: pass --nvda-allow-eval, or set allow-eval = true under "
+                "[tool.nvda-testkit]."
+            )
+        self._rpc.call("exec_in_nvda_nowait", source)
+
+    def simulate_modal(self, gesture: str = "enter", *, timeout: float = 10.0) -> bool:
+        """Close a real modal dialog opened by a prior exec_nowait() call.
+
+        Sends `gesture` (one of "enter", "escape", "tab", "space", "yes",
+        "no") as real injected keyboard input once NVDA's process takes the
+        foreground -- what a modal dialog does unconditionally on showing --
+        rather than through NVDA's own input pipeline (keys.press()), which
+        is dispatched the same blocked way exec()/eval() are and can't reach
+        a dialog that's already up. Returns False, rather than raising, if
+        no dialog took the foreground within `timeout`.
+        """
+        return bool(self._rpc.call("simulate_modal", gesture, timeout))
+
     def close(self) -> None:
         self._rpc.close()

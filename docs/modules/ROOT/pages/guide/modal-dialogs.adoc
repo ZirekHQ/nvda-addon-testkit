@@ -1,0 +1,48 @@
+= Closing a real modal dialog
+
+`nvda.exec()` and `nvda.eval()` both dispatch through NVDA's own main-thread
+queue and wait for the scenario to finish. That works for anything that
+returns on its own, but a real `wx.Dialog.ShowModal()` never drains that
+queue for as long as it's up — confirmed against a real NVDA, not just
+suspected. A scenario that opens one and waits for `exec()` to return will
+sit there until `exec()`'s own timeout fires, with the dialog still open
+afterwards. `nvda.keys.press()` can't reach it either, for the same reason:
+it dispatches through the same queue.
+
+The dialog's own message loop is still alive, though — it has to be, to
+receive the click a real user would make. `exec_nowait()` and
+`simulate_modal()` reach it that way instead.
+
+[source,python]
+----
+def test_simulate_modal_closes_a_real_dialog(nvda):
+include::example$tests_e2e/test_smoke.py[tag=modal,indent=4]
+----
+
+`exec_nowait()` queues a scenario the same way `exec()` does, but returns
+immediately instead of waiting for it to finish — freeing this process's
+single-threaded RPC server to accept the next call while the scenario is
+stuck inside `ShowModal()`. A syntax error in the scenario still raises
+`ScenarioSyntaxError` synchronously, the same as `exec()`; only running the
+scenario is deferred.
+
+`simulate_modal(gesture, timeout=10.0)` then runs on that next call's own
+thread, never touching the blocked queue: it polls for our own process to
+take the foreground — what a modal dialog does unconditionally on showing —
+and, once it does, sends `gesture` as real injected keyboard input via
+Win32's `SendInput`, the same path a human's keypress takes. It returns
+`False` on a timeout instead of raising, since that usually means the
+scenario never actually opened a dialog rather than NVDA hanging.
+`gesture` is one of `"enter"`, `"escape"`, `"tab"`, `"space"`, `"yes"`, or
+`"no"`.
+
+`exec_nowait()` needs `--nvda-allow-eval`, the same as `eval()`/`exec()`,
+because it runs arbitrary code inside NVDA. `simulate_modal()` does not need
+this flag because it only injects keyboard input.
+
+Pair the two: `exec_nowait()` to open the dialog, `simulate_modal()` to
+close it. `exec_nowait()` records which window is in the foreground before it
+queues the scenario, and the next `simulate_modal()` call treats only a
+different window as the dialog. Calling `exec()` instead of `exec_nowait()`
+to open the dialog defeats the point — `simulate_modal()`'s call would never
+even be dispatched.
