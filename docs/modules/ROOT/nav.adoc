@@ -9,6 +9,7 @@
 ** xref:guide/config.adoc[config]
 ** xref:guide/log.adoc[log]
 ** xref:guide/addons.adoc[addons]
+** xref:guide/modal-dialogs.adoc[Closing a real modal dialog]
 * xref:example-project.adoc[Example Project]
 * xref:ci-guide.adoc[Configuring CI]
 * xref:troubleshooting.adoc[Troubleshooting]
