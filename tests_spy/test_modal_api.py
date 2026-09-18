@@ -5,6 +5,7 @@ import pytest
 def api():
     from nvda_testkit_spy import modal_api
 
+    modal_api._pending_baseline["hwnd"] = modal_api._UNSET
     return modal_api
 
 
@@ -29,6 +30,74 @@ def test_an_unknown_gesture_raises_before_any_polling(api, monkeypatch):
     with pytest.raises(ValueError, match="doesn't know gesture"):
         api.simulate_modal("triple-click")
     assert polled == []
+
+
+@pytest.mark.parametrize("gesture", [["enter"], {"k": "enter"}, 13, None])
+def test_a_non_string_gesture_raises_value_error(api, gesture):
+    with pytest.raises(ValueError, match="doesn't know gesture"):
+        api.simulate_modal(gesture)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"timeout": "5"},
+        {"timeout": [1]},
+        {"timeout": float("inf")},
+        {"timeout": float("nan")},
+        {"timeout": -1},
+        {"poll_interval": "x"},
+        {"poll_interval": float("inf")},
+        {"poll_interval": -0.1},
+    ],
+)
+def test_invalid_timing_raises_value_error_before_any_polling(api, monkeypatch, kwargs):
+    polled = []
+    monkeypatch.setattr(api, "_foreground_owner", lambda: polled.append(1) or (None, None))
+    with pytest.raises(ValueError, match="simulate_modal"):
+        api.simulate_modal("enter", **kwargs)
+    assert polled == []
+
+
+def test_a_zero_timeout_returns_false_immediately(api, monkeypatch):
+    monkeypatch.setattr(api, "_kernel32", lambda: _fake_kernel32(42))
+    monkeypatch.setattr(api, "_foreground_owner", lambda: (100, 7))
+    assert api.simulate_modal("enter", timeout=0) is False
+
+
+def test_a_dialog_foregrounded_before_the_call_counts_against_the_recorded_baseline(
+    api, monkeypatch
+):
+    """exec_nowait queues a ShowModal() scenario that can foreground its
+    dialog before simulate_modal's own RPC even arrives. The baseline taken
+    at queue time, not at poll start, is what keeps that dialog from being
+    mistaken for the window that was already there."""
+    monkeypatch.setattr(api, "_kernel32", lambda: _fake_kernel32(42))
+    monkeypatch.setattr(api, "_foreground_owner", lambda: (200, 42))
+    monkeypatch.setattr(api, "_is_owned_modal", lambda hwnd: True)
+    sent = []
+    monkeypatch.setattr(api, "_send_vk", lambda vk: sent.append(vk))
+    api._pending_baseline["hwnd"] = 100
+
+    assert api.simulate_modal("enter", timeout=1, poll_interval=0) is True
+    assert sent == [api._VK["enter"]]
+
+
+def test_the_recorded_baseline_is_consumed_by_one_call(api, monkeypatch):
+    monkeypatch.setattr(api, "_kernel32", lambda: _fake_kernel32(42))
+    monkeypatch.setattr(api, "_foreground_owner", lambda: (200, 42))
+    monkeypatch.setattr(api, "_is_owned_modal", lambda hwnd: True)
+    monkeypatch.setattr(api, "_send_vk", lambda vk: None)
+    api._pending_baseline["hwnd"] = 100
+    api.simulate_modal("enter", timeout=1, poll_interval=0)
+
+    assert api.simulate_modal("enter", timeout=0.05, poll_interval=0.01) is False
+
+
+def test_remember_foreground_baseline_stores_the_current_foreground_hwnd(api, monkeypatch):
+    monkeypatch.setattr(api, "_foreground_owner", lambda: (321, 42))
+    api.remember_foreground_baseline()
+    assert api._pending_baseline["hwnd"] == 321
 
 
 def test_it_sends_the_gesture_once_our_process_owns_a_modal_in_the_foreground(api, monkeypatch):

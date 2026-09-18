@@ -4,9 +4,10 @@ import pytest
 
 
 @pytest.fixture
-def api(event_queue):
-    from nvda_testkit_spy import eval_api
+def api(event_queue, monkeypatch):
+    from nvda_testkit_spy import eval_api, modal_api
 
+    monkeypatch.setattr(modal_api, "_foreground_owner", lambda: (100, 42))
     return eval_api
 
 
@@ -117,3 +118,12 @@ def test_nowait_a_runtime_error_is_logged_instead_of_raised(api):
     logHandler.log.reset_mock()
     api.exec_in_nvda_nowait("1 / 0")
     logHandler.log.error.assert_called_once()
+
+
+def test_nowait_records_the_foreground_baseline_before_queueing(api, event_queue, monkeypatch):
+    event_queue.auto_drain = False
+    order = []
+    monkeypatch.setattr(api, "remember_foreground_baseline", lambda: order.append("baseline"))
+    monkeypatch.setattr(api.queueHandler, "queueFunction", lambda q, fn: order.append("queued"))
+    api.exec_in_nvda_nowait("x = 1")
+    assert order == ["baseline", "queued"]

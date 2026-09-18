@@ -25,6 +25,7 @@ simulate_modal's call would never even be dispatched.
 
 import ctypes
 import ctypes.wintypes as wintypes
+import math
 import time
 
 from .registry import rpc_method
@@ -159,28 +160,65 @@ def _is_owned_modal(hwnd):
     return not _user32().IsWindowEnabled(owner)
 
 
+_UNSET = object()
+_pending_baseline = {"hwnd": _UNSET}
+
+
+def remember_foreground_baseline():
+    """Records the current foreground hwnd for the next simulate_modal call.
+
+    exec_in_nvda_nowait calls this before queueing its scenario, so a dialog
+    the scenario foregrounds before simulate_modal's own RPC arrives still
+    counts as a change from the baseline.
+    """
+    _pending_baseline["hwnd"], _ = _foreground_owner()
+
+
+def _take_baseline():
+    hwnd, _pending_baseline["hwnd"] = _pending_baseline["hwnd"], _UNSET
+    if hwnd is _UNSET:
+        hwnd, _ = _foreground_owner()
+    return hwnd
+
+
+def _require_seconds(name, value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("simulate_modal %s must be a number, got %r" % (name, value))
+    if not math.isfinite(value) or value < 0:
+        raise ValueError("simulate_modal %s must be finite and >= 0, got %r" % (name, value))
+
+
+def _require_vk(gesture):
+    vk = _VK.get(gesture) if isinstance(gesture, str) else None
+    if vk is None:
+        raise ValueError(
+            "simulate_modal doesn't know gesture %r (have: %s)" % (gesture, sorted(_VK))
+        )
+    return vk
+
+
 @rpc_method
 def simulate_modal(gesture="enter", timeout=10.0, poll_interval=0.05):
     """Wait for our own process to bring a modal dialog to the foreground,
     then send it `gesture`. Returns False on timeout instead of raising,
     since a timeout here usually means the scenario never actually opened a
     dialog (a caller bug), not a hang worth crashing the RPC call over.
+    Raises ValueError for an unknown gesture or a non-finite/negative timing.
 
-    Requires the foreground hwnd to actually *change* from what it was when
-    polling started, not just `_is_owned_modal(hwnd)` on its own: an
-    ownerless dialog (see _is_owned_modal) is indistinguishable from a
-    window our own process already had open before this was even called,
+    Requires the foreground hwnd to actually *change* from the baseline
+    recorded when exec_in_nvda_nowait queued the scenario (or, without one,
+    from when polling started), not just `_is_owned_modal(hwnd)` on its own:
+    an ownerless dialog (see _is_owned_modal) is indistinguishable from a
+    window our own process already had open before the scenario ran,
     e.g. NVDA's own main frame -- confirmed the hard way against a real
     NVDA, where dropping this check fired the gesture at whatever was
     already foreground and left the actual dialog open and blocked forever.
     """
-    vk = _VK.get(gesture)
-    if vk is None:
-        raise ValueError(
-            "simulate_modal doesn't know gesture %r (have: %s)" % (gesture, sorted(_VK))
-        )
+    vk = _require_vk(gesture)
+    _require_seconds("timeout", timeout)
+    _require_seconds("poll_interval", poll_interval)
     our_pid = _kernel32().GetCurrentProcessId()
-    initial_hwnd, _ = _foreground_owner()
+    initial_hwnd = _take_baseline()
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         hwnd, pid = _foreground_owner()

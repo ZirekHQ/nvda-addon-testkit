@@ -36,11 +36,13 @@ scenario never actually opened a dialog rather than NVDA hanging.
 `gesture` is one of `"enter"`, `"escape"`, `"tab"`, `"space"`, `"yes"`, or
 `"no"`.
 
-Both need `--nvda-allow-eval`, the same as `eval()`/`exec()` — `exec_nowait()`
-runs arbitrary code inside NVDA just like `exec()` does; `simulate_modal()`
-itself doesn't, but only makes sense paired with a scenario that does.
+`exec_nowait()` needs `--nvda-allow-eval`, the same as `eval()`/`exec()`,
+because it runs arbitrary code inside NVDA. `simulate_modal()` does not need
+this flag because it only injects keyboard input.
 
 Pair the two: `exec_nowait()` to open the dialog, `simulate_modal()` to
-close it. Calling `exec()` instead of `exec_nowait()` to open the dialog
-defeats the point — `simulate_modal()`'s call would never even be
-dispatched.
+close it. `exec_nowait()` records which window is in the foreground before it
+queues the scenario, and the next `simulate_modal()` call treats only a
+different window as the dialog. Calling `exec()` instead of `exec_nowait()`
+to open the dialog defeats the point — `simulate_modal()`'s call would never
+even be dispatched.

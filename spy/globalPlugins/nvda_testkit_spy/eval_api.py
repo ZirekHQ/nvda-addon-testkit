@@ -26,6 +26,7 @@ import queueHandler
 from logHandler import log
 
 from .mainthread import run_on_main_thread
+from .modal_api import remember_foreground_baseline
 from .registry import rpc_method
 
 _SCALARS = (str, int, float, bool, type(None))
@@ -75,5 +76,6 @@ def exec_in_nvda_nowait(source):
         except Exception:
             log.error("nvda-testkit: exec_in_nvda_nowait scenario raised", exc_info=True)
 
+    remember_foreground_baseline()
     queueHandler.queueFunction(queueHandler.eventQueue, _run)
     return True
