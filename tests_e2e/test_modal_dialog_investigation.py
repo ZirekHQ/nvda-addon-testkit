@@ -6,39 +6,53 @@ Windows CI, read the result, and act on it per the plan (either open a new
 issue describing a real fix, or proceed with the simulate_modal() fallback
 in the next task). Delete or keep this file once the investigation is
 resolved -- it is not meant to run on every CI build.
+
+Everything happens inside a single exec_in_nvda call, entirely on NVDA's
+main thread: the spy's XML-RPC server (server.py) is a plain, unthreaded
+SimpleXMLRPCServer, so two separate RPC connections can never be genuinely
+concurrent at the transport level -- the second call simply can't be
+dispatched until the first's handler returns. Queuing the second job from
+*inside* the running scenario, via queueHandler.queueFunction directly,
+avoids needing RPC-level concurrency at all: it tests whether NVDA's own
+queue-draining mechanism still runs while the main thread is nested inside
+ShowModal()'s event loop, using a timestamp comparison instead of a second
+network round trip.
 """
 
 
 def test_a_second_job_while_a_real_modal_is_up(nvda, require_eval):
-    show_dialog = (
-        "import threading\n"
+    scenario = (
+        "import queueHandler\n"
+        "import time\n"
         "import wx\n"
-        "started = threading.Event()\n"
-        "def show():\n"
-        "    started.set()\n"
-        "    dlg = wx.MessageDialog(None, 'probe', 'probe', wx.YES_NO)\n"
-        "    wx.CallLater(3000, dlg.EndModal, wx.ID_YES)\n"
-        "    dlg.ShowModal()\n"
-        "    dlg.Destroy()\n"
-        "threading.Thread(target=show).start()\n"
-        "started.wait(timeout=5)\n"
+        "job_b_ran_at = []\n"
+        # exec_in_nvda runs this with separate globals/locals dicts (like a
+        # class body), so a nested def can't see job_b_ran_at/time as
+        # globals -- bind both as defaults, evaluated now, in this scope.
+        "def job_b(sink=job_b_ran_at, now=time.monotonic):\n"
+        "    sink.append(now())\n"
+        "queueHandler.queueFunction(queueHandler.eventQueue, job_b)\n"
+        "dlg = wx.MessageDialog(None, 'probe', 'probe', wx.YES_NO)\n"
+        "wx.CallLater(1000, dlg.EndModal, wx.ID_YES)\n"
+        "before = time.monotonic()\n"
+        "dlg.ShowModal()\n"
+        "after = time.monotonic()\n"
+        "dlg.Destroy()\n"
+        "__result__ = {\n"
+        "    'ran_during_modal': bool(job_b_ran_at) and before <= job_b_ran_at[0] <= after,\n"
+        "    'ran_at_all': bool(job_b_ran_at),\n"
+        "}\n"
     )
-    nvda.exec(show_dialog)
 
-    # While the dialog above is presumed to be showing, queue a trivial
-    # second job with a short timeout and see whether it ever starts.
-    try:
-        nvda.exec("__result__ = 1 + 1")
-        second_job_started = True
-    except Exception as error:
-        second_job_started = "never started" not in str(error)
+    result = nvda.exec(scenario)
 
-    assert second_job_started, (
-        "CONFIRMS THE DEADLOCK: a second main-thread job never started while "
-        "a real ShowModal() dialog was up. Proceed with Task 7 (the "
-        "simulate_modal() fallback)."
+    assert result["ran_during_modal"], (
+        "CONFIRMS THE DEADLOCK: a second main-thread job never ran while a "
+        f"real ShowModal() dialog was up (ran_at_all={result['ran_at_all']!r}). "
+        "Proceed with Task 7 (the simulate_modal() fallback)."
     )
-    # If this assertion passes instead, the queue is NOT blocked by ShowModal()
-    # in this NVDA version: STOP, do not proceed to Task 7, and open a new
-    # issue describing this finding plus what actually blocks input_api.py's
-    # keys_press() from dismissing the dialog (if anything still does).
+    # If this assertion passes instead, the queue IS drained during
+    # ShowModal() in this NVDA version: STOP, do not proceed to Task 7, and
+    # open a new issue describing this finding plus what actually blocks
+    # input_api.py's keys_press() from dismissing the dialog (if anything
+    # still does).
