@@ -3,7 +3,7 @@ import json
 import pytest
 
 from nvda_testkit.client import NvdaClient, NvdaVersion
-from nvda_testkit.errors import RpcError, TestkitError
+from nvda_testkit.errors import RpcError, ScenarioSyntaxError, TestkitError
 from nvda_testkit.process import NvdaProcess
 from nvda_testkit.rpcclient import RpcClient
 from nvda_testkit.settings import TestkitSettings
@@ -112,6 +112,40 @@ def test_restart_nvda_requires_eval(client):
         client.restart_nvda(timeout=5)
 
 
+def test_restart_nvda_reports_a_testkiterror_when_nvda_is_not_running(fake_nvda):
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    client = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+    try:
+        proc._handshake = None
+        with pytest.raises(TestkitError, match="nothing to restart"):
+            client.restart_nvda(timeout=5)
+        assert proc.handshake_path.exists()
+    finally:
+        client.close()
+        proc._handshake = handshake
+        proc.kill()
+
+
+def test_restart_nvda_refuses_before_touching_the_handshake_file(fake_nvda):
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    client = NvdaClient(proc, rpc)
+    try:
+        with pytest.raises(TestkitError, match="--nvda-allow-eval"):
+            client.restart_nvda(timeout=5)
+        assert proc.handshake_path.exists()
+    finally:
+        client.close()
+        proc.kill()
+
+
 def test_restart_nvda_adopts_the_replacement_handshake(fake_nvda):
     import threading
     import time
@@ -196,8 +230,6 @@ def test_exec_is_refused_unless_explicitly_allowed(client):
 
 
 def test_a_syntax_error_in_exec_raises_scenariosyntaxerror(fake_nvda):
-    from nvda_testkit.errors import ScenarioSyntaxError
-
     proc = NvdaProcess(
         fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
     )
@@ -212,8 +244,6 @@ def test_a_syntax_error_in_exec_raises_scenariosyntaxerror(fake_nvda):
 
 
 def test_a_syntax_error_in_eval_also_raises_scenariosyntaxerror(fake_nvda):
-    from nvda_testkit.errors import ScenarioSyntaxError
-
     proc = NvdaProcess(
         fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
     )

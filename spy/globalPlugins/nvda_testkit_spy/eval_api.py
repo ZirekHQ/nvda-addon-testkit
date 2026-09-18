@@ -33,7 +33,7 @@ def _marshallable(value):
 
 
 def _evaluate(source):
-    return eval(source, {"__builtins__": builtins}, {})
+    return eval(source, {"__builtins__": builtins})
 
 
 @rpc_method
@@ -42,8 +42,8 @@ def eval_in_nvda(source, timeout=30.0):
 
 
 def _execute(source):
-    scope = {}
-    exec(compile(source, "<nvda-testkit>", "exec"), {"__builtins__": builtins}, scope)
+    scope = {"__builtins__": builtins}
+    exec(compile(source, "<nvda-testkit>", "exec"), scope)
     return scope.get("__result__")
 
 

@@ -73,6 +73,13 @@ def test_exec_a_syntax_error_raises_syntaxerror(api):
         api.exec_in_nvda("def broken(:\n    pass")
 
 
+def test_exec_a_nested_function_can_see_top_level_names(api):
+    result = api.exec_in_nvda(
+        "vals = [1, 2, 3]\ndef total():\n    return sum(vals)\n__result__ = total()"
+    )
+    assert result == 6
+
+
 def test_exec_a_runtime_error_propagates(api):
     with pytest.raises(ZeroDivisionError):
         api.exec_in_nvda("__result__ = 1 / 0")

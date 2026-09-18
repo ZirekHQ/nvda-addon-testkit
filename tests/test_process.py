@@ -1,5 +1,7 @@
+import contextlib
 import json
 import logging
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -207,7 +209,8 @@ def _kill_real_subprocess(proc: NvdaProcess) -> None:
     real_process = proc._proc
     if real_process is not None and real_process.poll() is None:
         real_process.kill()
-        real_process.wait(timeout=30)
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            real_process.wait(timeout=30)
 
 
 def test_adopt_relaunched_handshake_picks_up_a_new_pid(process, fake_nvda):

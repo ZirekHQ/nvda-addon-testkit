@@ -29,7 +29,7 @@ either way.
 """
 
 
-def test_a_second_job_while_a_real_modal_is_up(nvda, require_eval):
+def test_a_second_job_while_a_real_modal_is_up(require_eval, nvda):
     scenario = (
         "import queueHandler\n"
         "import time\n"

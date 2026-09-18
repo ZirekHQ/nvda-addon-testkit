@@ -69,7 +69,9 @@ still on Extended Security Updates).
 
 `nvda.eval()` runs a single expression inside NVDA; `nvda.exec()` runs a
 full multi-statement scenario and returns whatever it binds to
-`__result__`. Both need `--nvda-allow-eval`.
+`__result__`. Both need `--nvda-allow-eval`. A bad scenario raises
+`ScenarioSyntaxError`, so catching bare `except Exception: pass` around
+either call still swallows it — catch the types you expect instead.
 
 `nvda.restart_harness()` kills and relaunches the NVDA process — use it to
 finish a two-phase add-on install or reset to a clean process. It does not
