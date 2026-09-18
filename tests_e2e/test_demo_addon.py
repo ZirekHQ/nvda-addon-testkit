@@ -27,19 +27,19 @@ def test_install_is_two_phase_and_completes_on_restart(
     assert info.name == "testkit-demo"
     assert nvda.addons.state("testkit-demo") is AddonState.PENDING_INSTALL
 
-    nvda.restart()
+    nvda.restart_harness()
     assert nvda.addons.state("testkit-demo") is AddonState.ENABLED
     assert_no_unexpected_errors(nvda)
 
     nvda.addons.remove("testkit-demo")
-    nvda.restart()
+    nvda.restart_harness()
     assert nvda.addons.state("testkit-demo") is AddonState.NOT_INSTALLED
     # end::addons[]
 
 
 def test_the_installed_addon_logs_at_startup(nvda, addon_under_test):
     # tag::log[]
-    nvda.restart()
+    nvda.restart_harness()
     nvda.log.wait_for(re.escape(STARTUP_MESSAGE), since=0, timeout=20)
     # end::log[]
 
@@ -53,7 +53,7 @@ def test_its_gesture_produces_the_expected_speech(nvda, addon_under_test):
 
 def test_it_survives_a_restart(nvda, addon_under_test):
     # tag::fixtures[]
-    nvda.restart()
+    nvda.restart_harness()
     assert nvda.addons.state("testkit-demo") is AddonState.ENABLED
     before = nvda.speech.index()
     nvda.keys.press("NVDA+shift+control+d")
@@ -66,5 +66,5 @@ def test_removal_is_also_two_phase(nvda, addon_under_test):
     and that session-scoped fixture will not reinstall it."""
     nvda.addons.remove("testkit-demo")
     assert nvda.addons.state("testkit-demo") is AddonState.PENDING_REMOVE
-    nvda.restart()
+    nvda.restart_harness()
     assert nvda.addons.state("testkit-demo") is AddonState.NOT_INSTALLED
