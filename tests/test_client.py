@@ -1,7 +1,9 @@
+import json
+
 import pytest
 
 from nvda_testkit.client import NvdaClient, NvdaVersion
-from nvda_testkit.errors import TestkitError
+from nvda_testkit.errors import RpcError, TestkitError
 from nvda_testkit.process import NvdaProcess
 from nvda_testkit.rpcclient import RpcClient
 from nvda_testkit.settings import TestkitSettings
@@ -78,7 +80,7 @@ def test_reset_attempts_every_step_even_if_one_fails(client, monkeypatch):
     assert client.config.get(("speech", "synth")) == "espeak"
 
 
-def test_restart_rebuilds_namespaces_and_preserves_the_pre_restart_baseline(fake_nvda):
+def test_restart_harness_rebuilds_namespaces_and_preserves_the_pre_restart_baseline(fake_nvda):
     proc = NvdaProcess(
         fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
     )
@@ -92,7 +94,7 @@ def test_restart_rebuilds_namespaces_and_preserves_the_pre_restart_baseline(fake
 
         client.config.set(("speech", "synth"), "changed-before-restart")
 
-        client.restart(timeout=20)
+        client.restart_harness(timeout=20)
 
         assert client.rpc is not old_rpc
         assert client.process.handshake.pid != old_pid
@@ -100,6 +102,58 @@ def test_restart_rebuilds_namespaces_and_preserves_the_pre_restart_baseline(fake
 
         client.reset()
         assert client.config.get(("speech", "synth")) == "custom-baseline"
+    finally:
+        client.close()
+        proc.kill()
+
+
+def test_restart_nvda_requires_eval(client):
+    with pytest.raises(TestkitError, match="--nvda-allow-eval"):
+        client.restart_nvda(timeout=5)
+
+
+def test_restart_nvda_adopts_the_replacement_handshake(fake_nvda):
+    import threading
+    import time
+
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    client = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+    try:
+        old_pid = handshake.pid
+
+        def fake_core_restart(source):
+            assert "core" in source and "restart" in source
+
+            def relaunch():
+                time.sleep(0.2)
+                proc.handshake_path.write_text(
+                    json.dumps(
+                        {
+                            "port": handshake.port,
+                            "pid": old_pid + 1,
+                            "nvdaVersion": "2026.1.1",
+                            "apiVersion": "2026.1.1",
+                            "apiCompatTo": "2026.1.0",
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            threading.Thread(target=relaunch).start()
+            raise RpcError("connection dropped mid-response, as a real restart would")
+
+        monkeypatch_target = client.eval
+        client.eval = fake_core_restart
+        try:
+            client.restart_nvda(timeout=5)
+        finally:
+            client.eval = monkeypatch_target
+
+        assert client.process.handshake.pid == old_pid + 1
     finally:
         client.close()
         proc.kill()

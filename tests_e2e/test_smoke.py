@@ -37,5 +37,5 @@ def test_config_round_trips_through_a_real_nvda(nvda):
 
 
 def test_startup_produced_no_errors(nvda, assert_no_unexpected_errors):
-    nvda.restart()
+    nvda.restart_harness()
     assert_no_unexpected_errors(nvda)
