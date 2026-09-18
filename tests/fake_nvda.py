@@ -56,6 +56,7 @@ class FakeSpy:
             "braille": {"display": "noBraille"},
         }
         self._log: list[dict] = []
+        self._modal_calls: list[dict] = []
         self._addons: dict[str, dict] = {}
         self._load_addons()
         self.stop_requested = threading.Event()
@@ -234,6 +235,23 @@ class FakeSpy:
         scope = {"__builtins__": builtins}
         exec(compile(source, "<fake-nvda>", "exec"), scope)
         return _marshallable(scope.get("__result__"))
+
+    def rpc_exec_in_nvda_nowait(self, source):
+        # No real main thread to defer to here; running it inline is close
+        # enough for a double whose job is exercising the wire protocol, not
+        # modelling NVDA's threading.
+        scope = {"__builtins__": builtins}
+        exec(compile(source, "<fake-nvda>", "exec"), scope)
+        return True
+
+    def rpc_simulate_modal(self, gesture="enter", timeout=10.0):
+        with self._lock:
+            self._modal_calls.append({"gesture": gesture, "timeout": timeout})
+        return bool(self._script.get("simulate_modal_result", True))
+
+    def rpc_modal_calls(self):
+        with self._lock:
+            return list(self._modal_calls)
 
     def rpc_addons_install(self, bundle_path, timeout=120.0):
         entry = {"name": "demo-addon", "version": "1.0.0", "state": "PENDING_INSTALL"}

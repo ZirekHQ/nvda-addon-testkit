@@ -83,3 +83,37 @@ def test_exec_a_nested_function_can_see_top_level_names(api):
 def test_exec_a_runtime_error_propagates(api):
     with pytest.raises(ZeroDivisionError):
         api.exec_in_nvda("__result__ = 1 / 0")
+
+
+def test_nowait_it_is_registered_under_the_name_the_host_calls(event_queue):
+    from nvda_testkit_spy import eval_api  # noqa: F401
+    from nvda_testkit_spy.registry import METHODS
+
+    assert "exec_in_nvda_nowait" in METHODS
+
+
+def test_nowait_returns_true_without_waiting_for_the_result(api):
+    assert api.exec_in_nvda_nowait("x = 1") is True
+
+
+def test_nowait_does_not_run_the_scenario_inline(api, event_queue, capsys):
+    event_queue.auto_drain = False
+    api.exec_in_nvda_nowait("print('ran')")
+    assert capsys.readouterr().out == ""
+    event_queue.drain()
+    assert capsys.readouterr().out == "ran\n"
+
+
+def test_nowait_a_syntax_error_raises_synchronously_not_once_queued(api, event_queue):
+    event_queue.auto_drain = False
+    with pytest.raises(SyntaxError):
+        api.exec_in_nvda_nowait("def broken(:\n    pass")
+    assert event_queue.empty()
+
+
+def test_nowait_a_runtime_error_is_logged_instead_of_raised(api):
+    import logHandler
+
+    logHandler.log.reset_mock()
+    api.exec_in_nvda_nowait("1 / 0")
+    logHandler.log.error.assert_called_once()
