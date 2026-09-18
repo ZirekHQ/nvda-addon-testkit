@@ -194,3 +194,61 @@ def test_a_restart_does_not_point_nvda_back_at_the_first_log(tmp_path):
     proc._number_log_file()
     assert first_argv != proc.argv
     assert sum(arg.startswith("--log-file=") for arg in proc.argv) == 1
+
+
+def test_adopt_relaunched_handshake_picks_up_a_new_pid(process, fake_nvda):
+    import threading
+    import time
+
+    proc = process()
+    first = proc.start(timeout=20)
+
+    def relaunch():
+        time.sleep(0.2)
+        payload = {
+            "port": first.port,
+            "pid": first.pid + 1,
+            "nvdaVersion": "2026.1.1",
+            "apiVersion": "2026.1.1",
+            "apiCompatTo": "2026.1.0",
+        }
+        proc.handshake_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    threading.Thread(target=relaunch).start()
+    second = proc.adopt_relaunched_handshake(exclude_pid=first.pid, timeout=5)
+    assert second.pid == first.pid + 1
+
+
+def test_adopt_relaunched_handshake_times_out_if_the_pid_never_changes(process, fake_nvda):
+    proc = process()
+    proc.start(timeout=20)
+    with pytest.raises(HandshakeTimeout, match="never announced"):
+        proc.adopt_relaunched_handshake(exclude_pid=proc.handshake.pid, timeout=0.3)
+
+
+def test_is_running_and_kill_work_after_adopting_a_relaunch(process, fake_nvda, monkeypatch):
+    import threading
+    import time
+
+    proc = process()
+    first = proc.start(timeout=20)
+    killed_pids = []
+    monkeypatch.setattr(proc, "_kill_pid", lambda pid: killed_pids.append(pid))
+
+    def relaunch():
+        time.sleep(0.2)
+        payload = {
+            "port": first.port,
+            "pid": first.pid + 1,
+            "nvdaVersion": "2026.1.1",
+            "apiVersion": "2026.1.1",
+            "apiCompatTo": "2026.1.0",
+        }
+        proc.handshake_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    threading.Thread(target=relaunch).start()
+    proc.adopt_relaunched_handshake(exclude_pid=first.pid, timeout=5)
+
+    assert proc.is_running
+    proc.kill()
+    assert killed_pids == [first.pid + 1]
