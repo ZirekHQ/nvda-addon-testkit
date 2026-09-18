@@ -106,5 +106,14 @@ class NvdaClient:
             )
         return self._rpc.call("eval_in_nvda", source)
 
+    def exec(self, source: str) -> Any:
+        if not self._settings.allow_eval:
+            raise TestkitError(
+                "nvda.exec() is disabled. It runs arbitrary code inside NVDA, so it is "
+                "opt-in: pass --nvda-allow-eval, or set allow-eval = true under "
+                "[tool.nvda-testkit]."
+            )
+        return self._rpc.call("exec_in_nvda", source)
+
     def close(self) -> None:
         self._rpc.close()

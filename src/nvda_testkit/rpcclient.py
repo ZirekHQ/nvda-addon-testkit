@@ -14,7 +14,7 @@ import xmlrpc.client
 from collections.abc import Callable
 from typing import Any
 
-from .errors import AuthError, RpcError, WaitTimeout
+from .errors import AuthError, RpcError, ScenarioSyntaxError, WaitTimeout
 from .process import Handshake
 
 _DEFAULT_INTERVAL = 0.05
@@ -70,6 +70,10 @@ class RpcClient:
                     f"The spy rejected our token calling {method!r}. "
                     "A stale NVDA from a previous run is the usual cause. "
                     f"Remote said: {message}"
+                ) from fault
+            if method in ("eval_in_nvda", "exec_in_nvda") and "SyntaxError" in message:
+                raise ScenarioSyntaxError(
+                    f"{method}() was given source that doesn't compile: {message}"
                 ) from fault
             raise RpcError(f"{method}() failed inside NVDA: {message}") from fault
         except xmlrpc.client.ProtocolError as error:

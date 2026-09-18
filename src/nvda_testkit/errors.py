@@ -46,6 +46,15 @@ class AuthError(RpcError):
     """The spy rejected our token. Almost always a stale NVDA from a previous run."""
 
 
+class ScenarioSyntaxError(RpcError):
+    """`nvda.eval()`/`nvda.exec()` was given source that doesn't compile.
+
+    Distinguished from a plain RpcError so a scenario's own `except
+    Exception:` doesn't have to be the only thing standing between a typo
+    and a silently-skipped assertion.
+    """
+
+
 class WaitTimeout(TestkitError):
     """A deadline-bounded poll expired before its predicate came true."""
 

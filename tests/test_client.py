@@ -121,3 +121,53 @@ def test_eval_works_when_allowed(fake_nvda):
         assert permissive.eval("2 + 2") == 4
     finally:
         proc.kill()
+
+
+def test_exec_works_when_allowed(fake_nvda):
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    try:
+        permissive = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+        assert permissive.exec("x = 2\n__result__ = x * 3") == 6
+    finally:
+        proc.kill()
+
+
+def test_exec_is_refused_unless_explicitly_allowed(client):
+    with pytest.raises(TestkitError, match="--nvda-allow-eval"):
+        client.exec("x = 1")
+
+
+def test_a_syntax_error_in_exec_raises_scenariosyntaxerror(fake_nvda):
+    from nvda_testkit.errors import ScenarioSyntaxError
+
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    try:
+        permissive = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+        with pytest.raises(ScenarioSyntaxError):
+            permissive.exec("def broken(:\n    pass")
+    finally:
+        proc.kill()
+
+
+def test_a_syntax_error_in_eval_also_raises_scenariosyntaxerror(fake_nvda):
+    from nvda_testkit.errors import ScenarioSyntaxError
+
+    proc = NvdaProcess(
+        fake_nvda.argv, fake_nvda.out_dir, token=fake_nvda.token, env=fake_nvda.env, quit_via="rpc"
+    )
+    handshake = proc.start(timeout=20)
+    rpc = RpcClient.from_handshake(handshake, token=fake_nvda.token)
+    try:
+        permissive = NvdaClient(proc, rpc, settings=TestkitSettings(allow_eval=True))
+        with pytest.raises(ScenarioSyntaxError):
+            permissive.eval("1 +")
+    finally:
+        proc.kill()
