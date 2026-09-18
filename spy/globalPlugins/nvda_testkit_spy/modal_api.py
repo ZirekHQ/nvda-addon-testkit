@@ -24,12 +24,14 @@ simulate_modal's call would never even be dispatched.
 """
 
 import ctypes
+import ctypes.wintypes as wintypes
 import time
 
 from .registry import rpc_method
 
 _INPUT_KEYBOARD = 1
 _KEYEVENTF_KEYUP = 0x0002
+_GW_OWNER = 4
 
 # Windows virtual-key codes for the gestures a modal message box responds to.
 _VK = {
@@ -87,19 +89,46 @@ class _Input(ctypes.Structure):
 
 
 def _user32():
-    return ctypes.windll.user32
+    # GetForegroundWindow()/GetWindow() return a pointer-sized HWND; ctypes
+    # defaults an undeclared restype to c_int, which truncates that handle
+    # on 64-bit Windows and silently breaks every call built on it below.
+    dll = ctypes.windll.user32
+    dll.GetForegroundWindow.restype = wintypes.HWND
+    dll.GetForegroundWindow.argtypes = []
+    dll.GetWindowThreadProcessId.restype = wintypes.DWORD
+    dll.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    dll.GetWindow.restype = wintypes.HWND
+    dll.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
+    dll.IsWindowEnabled.restype = wintypes.BOOL
+    dll.IsWindowEnabled.argtypes = [wintypes.HWND]
+    dll.SendInput.restype = wintypes.UINT
+    dll.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(_Input), ctypes.c_int]
+    return dll
 
 
 def _kernel32():
-    return ctypes.windll.kernel32
+    dll = ctypes.windll.kernel32
+    dll.GetCurrentProcessId.restype = wintypes.DWORD
+    dll.GetCurrentProcessId.argtypes = []
+    return dll
 
 
 def _send_vk(vk):
+    """Sends `vk` down then up via SendInput, raising if Windows rejected
+    either event (e.g. another process holding an input-blocking state)
+    instead of letting the caller believe the dialog was actually dismissed.
+    """
     key_down = _Input(type=_INPUT_KEYBOARD, ki=_KeybdInput(vk, 0, 0, 0, 0))
     key_up = _Input(type=_INPUT_KEYBOARD, ki=_KeybdInput(vk, 0, _KEYEVENTF_KEYUP, 0, 0))
-    _user32().SendInput(1, ctypes.byref(key_down), ctypes.sizeof(_Input))
+    user32 = _user32()
+    sent_down = user32.SendInput(1, ctypes.byref(key_down), ctypes.sizeof(_Input))
     time.sleep(0.03)
-    _user32().SendInput(1, ctypes.byref(key_up), ctypes.sizeof(_Input))
+    sent_up = user32.SendInput(1, ctypes.byref(key_up), ctypes.sizeof(_Input))
+    if sent_down != 1 or sent_up != 1:
+        raise OSError(
+            "SendInput rejected the key event for vk=%r (down=%d, up=%d); Windows may be "
+            "blocking synthetic input in this session." % (vk, sent_down, sent_up)
+        )
 
 
 def _foreground_owner():
@@ -107,17 +136,43 @@ def _foreground_owner():
     hwnd = _user32().GetForegroundWindow()
     if not hwnd:
         return None, None
-    pid = ctypes.c_ulong()
+    pid = wintypes.DWORD()
     _user32().GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
     return hwnd, pid.value
 
 
+def _is_owned_modal(hwnd):
+    """Best-effort: true if `hwnd` looks like an application-modal dialog.
+
+    An app-modal dialog disables its owner window for as long as it's up --
+    the clearest Win32 signal available without inspecting the message loop
+    itself. A dialog created with no parent (e.g. this module's own tests)
+    has no owner to check, so this falls back to true -- which also means
+    it can't tell such a dialog apart from any other ownerless top-level
+    window our own process already had open (NVDA's main frame included).
+    Only ever call this on a *newly*-foreground hwnd (see simulate_modal),
+    never as the sole test against whatever was already there.
+    """
+    owner = _user32().GetWindow(hwnd, _GW_OWNER)
+    if not owner:
+        return True
+    return not _user32().IsWindowEnabled(owner)
+
+
 @rpc_method
 def simulate_modal(gesture="enter", timeout=10.0, poll_interval=0.05):
-    """Wait for a window of our own process to take the foreground, then
-    send it `gesture`. Returns False on timeout instead of raising, since a
-    timeout here usually means the scenario never actually opened a dialog
-    (a caller bug), not a hang worth crashing the RPC call over.
+    """Wait for our own process to bring a modal dialog to the foreground,
+    then send it `gesture`. Returns False on timeout instead of raising,
+    since a timeout here usually means the scenario never actually opened a
+    dialog (a caller bug), not a hang worth crashing the RPC call over.
+
+    Requires the foreground hwnd to actually *change* from what it was when
+    polling started, not just `_is_owned_modal(hwnd)` on its own: an
+    ownerless dialog (see _is_owned_modal) is indistinguishable from a
+    window our own process already had open before this was even called,
+    e.g. NVDA's own main frame -- confirmed the hard way against a real
+    NVDA, where dropping this check fired the gesture at whatever was
+    already foreground and left the actual dialog open and blocked forever.
     """
     vk = _VK.get(gesture)
     if vk is None:
@@ -129,7 +184,7 @@ def simulate_modal(gesture="enter", timeout=10.0, poll_interval=0.05):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         hwnd, pid = _foreground_owner()
-        if hwnd and hwnd != initial_hwnd and pid == our_pid:
+        if hwnd and hwnd != initial_hwnd and pid == our_pid and _is_owned_modal(hwnd):
             _send_vk(vk)
             return True
         time.sleep(poll_interval)
