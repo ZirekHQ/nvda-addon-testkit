@@ -285,6 +285,11 @@ class NvdaProcess:
             )
 
     def quit(self, timeout: float = 30) -> None:
+        if not self._owns_current_process:
+            if self._handshake is not None:
+                self._kill_pid(self._handshake.pid)
+            self._handshake = None
+            return
         if self._proc is None:
             return
         if self._proc.poll() is not None:

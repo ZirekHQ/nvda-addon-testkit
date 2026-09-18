@@ -196,6 +196,20 @@ def test_a_restart_does_not_point_nvda_back_at_the_first_log(tmp_path):
     assert sum(arg.startswith("--log-file=") for arg in proc.argv) == 1
 
 
+def _kill_real_subprocess(proc: NvdaProcess) -> None:
+    """Force-kill the real OS process NvdaProcess stopped tracking.
+
+    Once a test adopts a fabricated relaunch pid, NvdaProcess itself can no
+    longer reach the still-running fake_nvda double via kill()/quit() -- it
+    is tracking a pid that was never real. Tests that adopt must reap the
+    real subprocess themselves or it leaks for the life of the test session.
+    """
+    real_process = proc._proc
+    if real_process is not None and real_process.poll() is None:
+        real_process.kill()
+        real_process.wait(timeout=30)
+
+
 def test_adopt_relaunched_handshake_picks_up_a_new_pid(process, fake_nvda):
     import threading
     import time
@@ -215,8 +229,11 @@ def test_adopt_relaunched_handshake_picks_up_a_new_pid(process, fake_nvda):
         proc.handshake_path.write_text(json.dumps(payload), encoding="utf-8")
 
     threading.Thread(target=relaunch).start()
-    second = proc.adopt_relaunched_handshake(exclude_pid=first.pid, timeout=5)
-    assert second.pid == first.pid + 1
+    try:
+        second = proc.adopt_relaunched_handshake(exclude_pid=first.pid, timeout=5)
+        assert second.pid == first.pid + 1
+    finally:
+        _kill_real_subprocess(proc)
 
 
 def test_adopt_relaunched_handshake_times_out_if_the_pid_never_changes(process, fake_nvda):
@@ -247,8 +264,43 @@ def test_is_running_and_kill_work_after_adopting_a_relaunch(process, fake_nvda, 
         proc.handshake_path.write_text(json.dumps(payload), encoding="utf-8")
 
     threading.Thread(target=relaunch).start()
-    proc.adopt_relaunched_handshake(exclude_pid=first.pid, timeout=5)
+    try:
+        proc.adopt_relaunched_handshake(exclude_pid=first.pid, timeout=5)
 
-    assert proc.is_running
-    proc.kill()
-    assert killed_pids == [first.pid + 1]
+        assert proc.is_running
+        proc.kill()
+        assert killed_pids == [first.pid + 1]
+    finally:
+        _kill_real_subprocess(proc)
+
+
+def test_quit_works_after_adopting_a_relaunch(process, fake_nvda, monkeypatch):
+    import threading
+    import time
+
+    proc = process()
+    first = proc.start(timeout=20)
+    killed_pids = []
+    monkeypatch.setattr(proc, "_kill_pid", lambda pid: killed_pids.append(pid))
+
+    def relaunch():
+        time.sleep(0.2)
+        payload = {
+            "port": first.port,
+            "pid": first.pid + 1,
+            "nvdaVersion": "2026.1.1",
+            "apiVersion": "2026.1.1",
+            "apiCompatTo": "2026.1.0",
+        }
+        proc.handshake_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    threading.Thread(target=relaunch).start()
+    try:
+        proc.adopt_relaunched_handshake(exclude_pid=first.pid, timeout=5)
+
+        assert proc.is_running
+        proc.quit()
+        assert killed_pids == [first.pid + 1]
+        assert not proc.is_running
+    finally:
+        _kill_real_subprocess(proc)
