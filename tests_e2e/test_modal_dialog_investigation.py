@@ -17,6 +17,15 @@ avoids needing RPC-level concurrency at all: it tests whether NVDA's own
 queue-draining mechanism still runs while the main thread is nested inside
 ShowModal()'s event loop, using a timestamp comparison instead of a second
 network round trip.
+
+A third, lower-probability outcome is possible: if the dialog's own
+wx.CallLater dismiss timer never fires for some unrelated reason, this
+scenario never returns from ShowModal(), so nvda.exec() raises an RpcError
+(wrapping exec_in_nvda's server-side "started on NVDA's main thread but did
+not return within 30.0s" timeout) instead of returning a __result__ to
+assert on. If you see that on a real run, it's worth investigating
+separately -- it doesn't confirm or refute the queue-blocking hypothesis
+either way.
 """
 
 
