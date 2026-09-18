@@ -42,13 +42,14 @@ def run_on_main_thread(fn, timeout=DEFAULT_TIMEOUT):
         timed_out.set()
         if started.is_set():
             raise TimeoutError(
-                "%r started on NVDA's main thread but did not return within %.1fs. "
-                "It's hung, not queued behind something else." % (getattr(fn, "__name__", fn), timeout)
+                "%r started on NVDA's main thread but did not return "
+                "within %.1fs. It's hung, not queued behind something else."
+                % (getattr(fn, "__name__", fn), timeout)
             )
         raise TimeoutError(
             "%r never started on NVDA's main thread within %.1fs. "
-            "The queue is backed up or NVDA is unresponsive to queueFunction()."
-            % (getattr(fn, "__name__", fn), timeout)
+            "The queue is backed up or NVDA is unresponsive to "
+            "queueFunction()." % (getattr(fn, "__name__", fn), timeout)
         )
     if outcome["error"] is not None:
         raise outcome["error"]
