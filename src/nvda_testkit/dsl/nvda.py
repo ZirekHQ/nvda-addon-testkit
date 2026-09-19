@@ -83,8 +83,8 @@ class Nvda:
     def exec(self, source: str) -> Any:
         return self._client.exec(source)
 
-    def exec_nowait(self, source: str) -> None:
-        self._client.exec_nowait(source)
+    def exec_nowait(self, source: str, *, label: str = "queueing a scenario") -> None:
+        self._client.exec_nowait(source, label=label)
 
     def simulate_modal(self, gesture: str = "enter", *, timeout: float = 10.0) -> bool:
         return self._client.simulate_modal(gesture, timeout=timeout)

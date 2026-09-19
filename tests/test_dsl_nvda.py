@@ -52,6 +52,7 @@ def test_relaunch_moves_the_mark_to_the_new_process_and_keeps_properties_live(ma
     before = nvda.speech
     nvda.client.speech.speak("old process")
     nvda.press("a")
+    assert nvda.client.last_action.index == 1
     nvda.relaunch(timeout=20)
     assert nvda.client.last_action == ActionMark(0, "relaunching NVDA")
     assert nvda.speech is nvda.client.speech
@@ -64,3 +65,24 @@ def test_the_existing_client_api_is_still_reachable(make_dsl):
     assert nvda.process.handshake.pid > 0
     assert nvda.eval("1 + 1") == 2
     nvda.wait_until_idle(timeout=5)
+
+
+def test_exec_nowait_forwards_the_label(make_dsl):
+    nvda = make_dsl(allow_eval=True)
+    nvda.exec_nowait("pass", label="opening a dialog")
+    assert nvda.client.last_action.label == "opening a dialog"
+
+
+def test_simulate_modal_forwards_gesture_and_timeout(make_dsl):
+    nvda = make_dsl()
+    nvda.simulate_modal("escape", timeout=3.0)
+    assert nvda.rpc.call("modal_calls") == [{"gesture": "escape", "timeout": 3.0}]
+
+
+def test_namespace_properties_are_the_clients_objects(make_dsl):
+    nvda = make_dsl()
+    assert nvda.braille is nvda.client.braille
+    assert nvda.config is nvda.client.config
+    assert nvda.log is nvda.client.log
+    assert nvda.addons is nvda.client.addons
+    assert nvda.rpc is nvda.client.rpc

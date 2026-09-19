@@ -222,6 +222,8 @@ def test_addon_bundle_returns_the_single_match(pytester):
 
 
 def test_reset_failure_during_teardown_warns_instead_of_failing(harness, monkeypatch):
+    # Restores the class-level reset patch that this test's in-process pytester
+    # run leaves behind, which would break later tests using the nvda fixture.
     monkeypatch.setattr(NvdaClient, "reset", NvdaClient.reset)
     harness.makeconftest(
         """
