@@ -1,4 +1,4 @@
-"""Failure text for the DSL: plain, linear, numbered, at most about 15 lines."""
+"""Failure text for the DSL: plain, linear, numbered; long lists are truncated unless verbose."""
 
 from __future__ import annotations
 

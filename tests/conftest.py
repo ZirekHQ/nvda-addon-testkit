@@ -63,7 +63,7 @@ def fake_nvda(tmp_path):
 
 @pytest.fixture
 def make_client(fake_nvda):
-    """Build one NvdaClient against the FakeNvda double; call it once per test."""
+    """Factory for a NvdaClient on the FakeNvda double."""
     started = []
 
     def build(**settings) -> NvdaClient:

@@ -1,4 +1,4 @@
-"""NvdaClient -- the object every test receives as the `nvda` fixture."""
+"""The NVDA RPC client behind the `nvda` fixture; reach it as `nvda.client`."""
 
 from __future__ import annotations
 
@@ -188,7 +188,8 @@ class NvdaClient:
         finish. Use this, not exec(), for a scenario that opens a real modal
         dialog -- exec() would block this process's single-threaded RPC
         server for the dialog's whole lifetime, so a paired simulate_modal()
-        call could never even be dispatched to close it."""
+        call could never even be dispatched to close it. Records an action mark
+        labelled `label`."""
         if not self._settings.allow_eval:
             raise TestkitError(
                 "nvda.exec_nowait() is disabled. It runs arbitrary code inside NVDA, so it "

@@ -1,5 +1,3 @@
-"""should_hear and should_not_hear."""
-
 from __future__ import annotations
 
 from collections.abc import Callable

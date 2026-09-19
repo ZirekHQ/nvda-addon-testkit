@@ -1,5 +1,3 @@
-"""open_dialog, close_dialog, dialog(), and cleanup of a leaked modal."""
-
 from __future__ import annotations
 
 from collections.abc import Iterator

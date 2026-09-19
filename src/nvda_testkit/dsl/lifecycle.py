@@ -1,5 +1,3 @@
-"""install_addon, remove_addon, should_have_addon, and the teardown undo."""
-
 from __future__ import annotations
 
 from collections.abc import Callable

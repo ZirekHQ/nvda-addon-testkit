@@ -1,5 +1,3 @@
-"""should_log and should_have_no_errors."""
-
 from __future__ import annotations
 
 import re

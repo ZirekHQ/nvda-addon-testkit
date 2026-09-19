@@ -1,8 +1,4 @@
-"""Probes for the DSL spec's "to verify" items.
-
-Run once on Windows with --nvda-allow-eval, record the outcomes in the spec and the docs,
-then keep or delete. The outcomes are not yet recorded.
-"""
+"""Probes for DSL behaviour not yet verified on real NVDA."""
 
 import pytest
 
