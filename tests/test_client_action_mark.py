@@ -1,7 +1,10 @@
 import itertools
 import time
 
+import pytest
+
 from nvda_testkit.actionmark import START, ActionMark
+from nvda_testkit.errors import ConnectionLost, RpcError
 
 
 def test_a_new_client_marks_the_start_of_the_test(make_client):
@@ -102,3 +105,39 @@ def test_the_mark_is_still_recorded_when_nvda_never_reports_idle(make_client, mo
     assert time.monotonic() - started < 3
     assert idle_calls
     assert mark == ActionMark(0, "acting")
+
+
+def test_each_idle_probe_gets_only_the_remaining_budget(make_client, monkeypatch):
+    client = make_client()
+    idle_calls = _script_wait_until_idle(client, monkeypatch, iter([False, True]))
+    client.mark_action("acting")
+    assert all(0 < timeout <= 1.0 for (timeout,) in idle_calls)
+    assert len(idle_calls) == 2
+
+
+def test_an_idle_probe_timeout_counts_as_not_idle_and_the_mark_is_recorded(
+    make_client, monkeypatch
+):
+    client = make_client()
+    real_call = client.rpc.call
+
+    def call(method, *args, **kwargs):
+        if method == "wait_until_idle":
+            raise RpcError("wait_until_idle() failed inside NVDA: never started")
+        return real_call(method, *args, **kwargs)
+
+    monkeypatch.setattr(client.rpc, "call", call)
+    started = time.monotonic()
+    assert client.mark_action("acting") == ActionMark(0, "acting")
+    assert time.monotonic() - started < 3
+
+
+def test_a_lost_connection_is_not_swallowed_by_the_idle_probe(make_client, monkeypatch):
+    client = make_client()
+
+    def call(method, *args, **kwargs):
+        raise ConnectionLost("NVDA has died")
+
+    monkeypatch.setattr(client.rpc, "call", call)
+    with pytest.raises(ConnectionLost):
+        client.mark_action("acting")

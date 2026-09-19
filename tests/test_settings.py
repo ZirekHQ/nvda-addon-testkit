@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from nvda_testkit.settings import TestkitSettings, load_settings
 
 PYPROJECT = """
@@ -101,3 +103,13 @@ def test_a_bare_string_for_modules_is_one_module(tmp_path):
     path = tmp_path / "pyproject.toml"
     path.write_text('[tool.nvda-testkit]\nmodules = "audio"\n')
     assert load_settings(path).modules == ("audio",)
+
+
+@pytest.mark.parametrize("bad", [0, -1, float("nan"), float("inf")])
+def test_a_timeout_must_be_finite_and_positive(bad):
+    with pytest.raises(ValueError, match="timeout must be a finite positive number"):
+        load_settings(Path("does-not-exist.toml"), overrides={"timeout": bad})
+
+
+def test_a_positive_timeout_is_accepted():
+    assert load_settings(Path("does-not-exist.toml"), overrides={"timeout": 2}).timeout == 2.0

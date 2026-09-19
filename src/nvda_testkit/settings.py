@@ -5,6 +5,7 @@ tomllib is stdlib from 3.11, which is the floor -- no external TOML dependency.
 
 from __future__ import annotations
 
+import math
 import tomllib
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -40,12 +41,21 @@ class TestkitSettings:
     verbose: bool = False
 
 
+def _duration(field: str, value) -> float:
+    number = float(value)
+    if not math.isfinite(number) or number <= 0:
+        raise ValueError(f"{field} must be a finite positive number, got {value!r}")
+    return number
+
+
 def _coerce(field: str, value):
     if field in ("modules", "ignore_log_errors"):
         return (value,) if isinstance(value, str) else tuple(value)
     if field == "out_dir":
         return Path(value)
-    if field in ("timeout_scale", "timeout"):
+    if field == "timeout":
+        return _duration(field, value)
+    if field == "timeout_scale":
         return float(value)
     if field in ("allow_eval", "keep_portable", "fail_on_log_errors", "verbose"):
         return bool(value)

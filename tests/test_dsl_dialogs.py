@@ -156,10 +156,11 @@ def test_the_dialog_block_sends_its_default_gesture(make_dsl):
     "attempt",
     [
         lambda nvda, bundle: nvda.restart_nvda(),
+        lambda nvda, bundle: nvda.restart_harness(),
         lambda nvda, bundle: nvda.install_addon(bundle),
         lambda nvda, bundle: nvda.remove_addon("demo-addon"),
     ],
-    ids=["restart_nvda", "install_addon", "remove_addon"],
+    ids=["restart_nvda", "restart_harness", "install_addon", "remove_addon"],
 )
 def test_every_action_is_refused_while_a_dialog_is_open(make_client, tmp_path, attempt):
     bundle = tmp_path / "demo.nvda-addon"

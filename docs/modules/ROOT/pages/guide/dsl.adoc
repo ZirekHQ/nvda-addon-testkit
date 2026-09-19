@@ -83,11 +83,11 @@ include::example$tests_e2e/test_demo_dsl.py[tag=dsl-dialog,indent=4]
 
 `open_dialog()` and `close_dialog()` are the same steps without the block. While a dialog is open,
 the steps that send input or change state raise an error instead of hanging: `press`, `type`,
-`relaunch`, `restart_nvda`, `install_addon`, `remove_addon`, `should_have_addon`,
+`relaunch`, `restart_nvda`, `restart_harness`, `install_addon`, `remove_addon`, `should_have_addon`,
 `expecting_speech` and `open_dialog`. The assertions that only read speech and log (`should_hear`,
 `should_not_hear`, `should_log` and `should_have_no_errors`) are not guarded and work while a dialog
 is open. The low-level passthroughs `exec`, `eval`, `exec_nowait`, `simulate_modal`,
-`wait_until_idle`, `reset`, `restart_harness` and `keys.*` are not guarded and still block. Needs
+`wait_until_idle`, `reset` and `keys.*` are not guarded and still block. Needs
 `--nvda-allow-eval`.
 
 A test that ends with a dialog open fails after the kit closes it.

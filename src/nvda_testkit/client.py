@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .actionmark import START, ActionMark
-from .errors import ConnectionLost, TestkitError
+from .errors import AuthError, ConnectionLost, RpcError, TestkitError
 from .namespaces.addons import AddonsNamespace
 from .namespaces.braille import BrailleNamespace
 from .namespaces.config import ConfigNamespace
@@ -71,9 +71,18 @@ class NvdaClient:
     def last_action_index(self) -> int:
         return self.last_action.index
 
+    def _idle_within(self, deadline: float) -> bool:
+        remaining = max(deadline - time.monotonic(), _SETTLE_POLL)
+        try:
+            return bool(self._rpc.call("wait_until_idle", remaining))
+        except (ConnectionLost, AuthError):
+            raise
+        except RpcError:
+            return False
+
     def _settle_before_marking(self) -> None:
         deadline = time.monotonic() + _SETTLE_BUDGET
-        while not self._rpc.call("wait_until_idle", 5.0) and time.monotonic() < deadline:
+        while not self._idle_within(deadline) and time.monotonic() < deadline:
             time.sleep(_SETTLE_POLL)
 
     def mark_action(self, label: str) -> ActionMark:

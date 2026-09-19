@@ -106,6 +106,7 @@ class Nvda:
         self._client.reset()
 
     def restart_harness(self, *, timeout: float = 60.0) -> None:
+        self._dialogs.require_none_open()
         self._client.restart_harness(timeout=timeout)
 
     def eval(self, source: str) -> Any:
