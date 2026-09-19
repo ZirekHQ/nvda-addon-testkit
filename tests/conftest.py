@@ -3,6 +3,7 @@ needs a running "NVDA" gets one, on any platform."""
 
 from __future__ import annotations
 
+import contextlib
 import json
 import secrets
 import sys
@@ -10,6 +11,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
+
+from nvda_testkit.client import NvdaClient
+from nvda_testkit.dsl import Nvda
+from nvda_testkit.process import NvdaProcess
+from nvda_testkit.rpcclient import RpcClient
+from nvda_testkit.settings import TestkitSettings
 
 pytest_plugins = ["pytester"]
 
@@ -53,3 +60,36 @@ def fake_nvda(tmp_path):
     handle = FakeNvdaHandle(out_dir=tmp_path / "out", token=secrets.token_hex(16))
     handle.out_dir.mkdir(parents=True, exist_ok=True)
     return handle
+
+
+@pytest.fixture
+def make_client(fake_nvda):
+    """Factory for a NvdaClient on the FakeNvda double."""
+    started = []
+
+    def build(**settings) -> NvdaClient:
+        proc = NvdaProcess(
+            fake_nvda.argv,
+            fake_nvda.out_dir,
+            token=fake_nvda.token,
+            env=fake_nvda.env,
+            quit_via="rpc",
+        )
+        rpc = RpcClient.from_handshake(proc.start(timeout=20), token=fake_nvda.token)
+        client = NvdaClient(proc, rpc, settings=TestkitSettings(**settings))
+        started.append((client, proc))
+        return client
+
+    yield build
+    for client, proc in started:
+        with contextlib.suppress(Exception):
+            client.close()
+        proc.kill()
+
+
+@pytest.fixture
+def make_dsl(make_client):
+    def build(**settings) -> Nvda:
+        return Nvda(make_client(**settings))
+
+    return build
