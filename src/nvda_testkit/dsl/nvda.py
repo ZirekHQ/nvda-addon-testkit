@@ -191,5 +191,7 @@ class Nvda:
 
     def finish(self) -> None:
         __tracebackhide__ = True
-        self._lifecycle.undo_all()
-        self._logs.check_at_teardown()
+        try:
+            self._logs.check_at_teardown()
+        finally:
+            self._lifecycle.undo_all()

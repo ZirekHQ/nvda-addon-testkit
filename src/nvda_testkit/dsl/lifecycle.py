@@ -37,8 +37,8 @@ class Lifecycle:
 
     def install(self, path: Path | None) -> None:
         info = self._client.addons.install(path if path is not None else self._bundle())
-        self._client.restart_harness()
         self._installed.append(info.name)
+        self._client.restart_harness()
         self.should_have(info.name, AddonState.ENABLED)
 
     def remove(self, name: str) -> None:
@@ -57,9 +57,11 @@ class Lifecycle:
 
     def undo_all(self) -> None:
         absent = AddonState.NOT_INSTALLED
-        present = [n for n in self._installed if self._client.addons.state(n) is not absent]
-        self._installed.clear()
-        for name in present:
-            self._client.addons.remove(name)
-        if present:
-            self._client.restart_harness()
+        try:
+            present = [n for n in self._installed if self._client.addons.state(n) is not absent]
+            for name in present:
+                self._client.addons.remove(name)
+            if present:
+                self._client.restart_harness()
+        finally:
+            self._installed.clear()
