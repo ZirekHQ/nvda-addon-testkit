@@ -84,11 +84,13 @@ def nvda_session(_nvda_provisioned, nvda_settings) -> NvdaClient:
 
 
 @pytest.fixture
-def nvda(request: pytest.FixtureRequest, nvda_session: NvdaClient) -> Nvda:
+def nvda(request: pytest.FixtureRequest, nvda_session: NvdaClient):
     if request.node.get_closest_marker("fresh_nvda"):
         nvda_session.restart_harness()
     nvda_session.reset()
-    return Nvda(nvda_session)
+    dsl = Nvda(nvda_session)
+    yield dsl
+    dsl.finish()
 
 
 @pytest.fixture(autouse=True)

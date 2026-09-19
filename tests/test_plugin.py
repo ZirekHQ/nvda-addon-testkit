@@ -336,3 +336,14 @@ def test_a_dsl_failure_prints_the_plain_message(harness):
     result = harness.runpytest()
     result.assert_outcomes(failed=1)
     result.stdout.fnmatch_lines(['E *AssertionError: Expected to hear "PM" within 0.2 seconds*'])
+
+
+def test_fail_on_log_errors_reports_a_teardown_error(harness):
+    harness.makepyprojecttoml("[tool.nvda-testkit]\nfail-on-log-errors = true\n")
+    harness.makepyfile(
+        """
+        def test_logs_an_error(nvda):
+            nvda.rpc.call("log_emit", "ERROR", "boom")
+        """
+    )
+    harness.runpytest().assert_outcomes(passed=1, errors=1)

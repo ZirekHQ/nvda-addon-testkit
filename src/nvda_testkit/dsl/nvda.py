@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from typing import Any, overload
 
 from ..client import NvdaClient, NvdaVersion
@@ -16,6 +17,7 @@ from ..process import NvdaProcess
 from ..rpcclient import RpcClient
 from ..settings import TestkitSettings
 from .hearing import Hearing
+from .logsteps import LogSteps
 from .matching import build_matcher
 
 
@@ -23,6 +25,7 @@ class Nvda:
     def __init__(self, client: NvdaClient) -> None:
         self._client = client
         self._hearing = Hearing(client, client.settings)
+        self._logs = LogSteps(client, client.settings)
 
     @property
     def client(self) -> NvdaClient:
@@ -150,3 +153,29 @@ class Nvda:
             for_seconds=for_seconds,
             mark=self._client.last_action,
         )
+
+    @overload
+    def should_log(self, text: str, *, within: float | None = None) -> None: ...
+
+    @overload
+    def should_log(
+        self, *, matching: str | re.Pattern[str], within: float | None = None
+    ) -> None: ...
+
+    def should_log(
+        self,
+        text: str | None = None,
+        *,
+        matching: str | re.Pattern[str] | None = None,
+        within: float | None = None,
+    ) -> None:
+        __tracebackhide__ = True
+        self._logs.should_log(build_matcher(text, matching), within=self._within(within))
+
+    def should_have_no_errors(self, *, ignoring: Sequence[str] = ()) -> None:
+        __tracebackhide__ = True
+        self._logs.should_have_no_errors(ignoring)
+
+    def finish(self) -> None:
+        __tracebackhide__ = True
+        self._logs.check_at_teardown()
