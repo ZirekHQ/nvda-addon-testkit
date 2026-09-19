@@ -27,6 +27,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
     group.addoption("--nvda-out-dir", default=None, help="where logs and artifacts are written")
     group.addoption(
+        "--nvda-verbose",
+        action="store_true",
+        default=None,
+        help="do not truncate long lists in DSL failure messages",
+    )
+    group.addoption(
         "--nvda-fake",
         default=None,
         help="drive the FakeNvda double at this path instead of a real NVDA (development only)",
@@ -54,6 +60,7 @@ def nvda_settings(pytestconfig: pytest.Config):
             "allow_eval": True if option.nvda_allow_eval else None,
             "keep_portable": True if option.nvda_keep_portable else None,
             "out_dir": option.nvda_out_dir,
+            "verbose": True if option.nvda_verbose else None,
         }
     )
 

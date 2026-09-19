@@ -295,3 +295,13 @@ def test_a_test_that_does_not_ask_for_nvda_never_starts_it(harness):
     result.assert_outcomes(passed=1)
     marker = harness.path / "provisioned.marker"
     assert not marker.exists(), "nvda_reset must stay lazy: NVDA must never be provisioned"
+
+
+def test_nvda_verbose_flag_reaches_the_settings(harness):
+    harness.makepyfile(
+        """
+        def test_flag(nvda_settings):
+            assert nvda_settings.verbose is True
+        """
+    )
+    harness.runpytest("--nvda-verbose").assert_outcomes(passed=1)

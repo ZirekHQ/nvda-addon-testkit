@@ -18,6 +18,10 @@ _KEY_MAP = {
     "timeout-scale": "timeout_scale",
     "keep-portable": "keep_portable",
     "out-dir": "out_dir",
+    "timeout": "timeout",
+    "fail-on-log-errors": "fail_on_log_errors",
+    "ignore-log-errors": "ignore_log_errors",
+    "verbose": "verbose",
 }
 
 
@@ -30,16 +34,20 @@ class TestkitSettings:
     timeout_scale: float = 1.0
     keep_portable: bool = False
     out_dir: Path = Path("testOutput")
+    timeout: float = 10.0
+    fail_on_log_errors: bool = False
+    ignore_log_errors: tuple[str, ...] = ()
+    verbose: bool = False
 
 
 def _coerce(field: str, value):
-    if field == "modules":
+    if field in ("modules", "ignore_log_errors"):
         return tuple(value)
     if field == "out_dir":
         return Path(value)
-    if field == "timeout_scale":
+    if field in ("timeout_scale", "timeout"):
         return float(value)
-    if field in ("allow_eval", "keep_portable"):
+    if field in ("allow_eval", "keep_portable", "fail_on_log_errors", "verbose"):
         return bool(value)
     return value
 
