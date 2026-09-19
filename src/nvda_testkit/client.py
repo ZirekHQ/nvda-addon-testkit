@@ -6,6 +6,7 @@ import contextlib
 from dataclasses import dataclass
 from typing import Any
 
+from .actionmark import START, ActionMark
 from .errors import ConnectionLost, TestkitError
 from .namespaces.addons import AddonsNamespace
 from .namespaces.braille import BrailleNamespace
@@ -41,10 +42,11 @@ class NvdaClient:
 
     def _attach(self, rpc: RpcClient) -> None:
         self._rpc = rpc
+        self.last_action = START
         self.addons = AddonsNamespace(rpc)
         self.speech = SpeechNamespace(rpc)
         self.braille = BrailleNamespace(rpc)
-        self.keys = KeysNamespace(rpc)
+        self.keys = KeysNamespace(rpc, on_action=self.mark_action)
         self.config = ConfigNamespace(rpc)
         self.log = LogNamespace(rpc)
 
@@ -55,6 +57,24 @@ class NvdaClient:
     @property
     def process(self) -> NvdaProcess:
         return self._process
+
+    @property
+    def settings(self) -> TestkitSettings:
+        return self._settings
+
+    @property
+    def last_action_index(self) -> int:
+        return self.last_action.index
+
+    def mark_action(self, label: str) -> ActionMark:
+        """Record where speech from the action about to run begins.
+
+        Waits for NVDA to go idle first so speech still in flight from the
+        previous action is not attributed to this one.
+        """
+        self._rpc.call("wait_until_idle", 5.0)
+        self.last_action = ActionMark(int(self._rpc.call("speech_index")), label)
+        return self.last_action
 
     @property
     def version(self) -> NvdaVersion:
@@ -84,6 +104,7 @@ class NvdaClient:
                 step()
             except Exception as error:
                 failures.append(f"{label}: {error}")
+        self.last_action = START
         if failures:
             raise TestkitError("reset() failed for " + "; ".join(failures))
 
@@ -99,6 +120,7 @@ class NvdaClient:
                 timeout_scale=self._settings.timeout_scale,
             )
         )
+        self.last_action = ActionMark(0, "relaunching NVDA")
 
     def restart_nvda(self, *, timeout: float = 60.0) -> None:
         """Trigger NVDA's own core.restart() and wait for its replacement
@@ -129,6 +151,7 @@ class NvdaClient:
                 timeout_scale=self._settings.timeout_scale,
             )
         )
+        self.last_action = ActionMark(0, "restarting NVDA")
 
     def eval(self, source: str) -> Any:
         if not self._settings.allow_eval:
@@ -148,7 +171,7 @@ class NvdaClient:
             )
         return self._rpc.call("exec_in_nvda", source)
 
-    def exec_nowait(self, source: str) -> None:
+    def exec_nowait(self, source: str, *, label: str = "queueing a scenario") -> None:
         """Queue a scenario on NVDA's main thread without waiting for it to
         finish. Use this, not exec(), for a scenario that opens a real modal
         dialog -- exec() would block this process's single-threaded RPC
@@ -160,6 +183,7 @@ class NvdaClient:
                 "is opt-in: pass --nvda-allow-eval, or set allow-eval = true under "
                 "[tool.nvda-testkit]."
             )
+        self.mark_action(label)
         self._rpc.call("exec_in_nvda_nowait", source)
 
     def simulate_modal(self, gesture: str = "enter", *, timeout: float = 10.0) -> bool:

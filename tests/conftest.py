@@ -11,6 +11,11 @@ from pathlib import Path
 
 import pytest
 
+from nvda_testkit.client import NvdaClient
+from nvda_testkit.process import NvdaProcess
+from nvda_testkit.rpcclient import RpcClient
+from nvda_testkit.settings import TestkitSettings
+
 pytest_plugins = ["pytester"]
 
 FAKE_NVDA = Path(__file__).parent / "fake_nvda.py"
@@ -53,3 +58,27 @@ def fake_nvda(tmp_path):
     handle = FakeNvdaHandle(out_dir=tmp_path / "out", token=secrets.token_hex(16))
     handle.out_dir.mkdir(parents=True, exist_ok=True)
     return handle
+
+
+@pytest.fixture
+def make_client(fake_nvda):
+    """Build one NvdaClient against the FakeNvda double; call it once per test."""
+    started = []
+
+    def build(**settings) -> NvdaClient:
+        proc = NvdaProcess(
+            fake_nvda.argv,
+            fake_nvda.out_dir,
+            token=fake_nvda.token,
+            env=fake_nvda.env,
+            quit_via="rpc",
+        )
+        rpc = RpcClient.from_handshake(proc.start(timeout=20), token=fake_nvda.token)
+        client = NvdaClient(proc, rpc, settings=TestkitSettings(**settings))
+        started.append((client, proc))
+        return client
+
+    yield build
+    for client, proc in started:
+        client.close()
+        proc.kill()
