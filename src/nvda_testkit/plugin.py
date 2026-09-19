@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
 from .client import NvdaClient
+from .dsl import Nvda
 from .errors import ProvisionError
 from .provisioning import Provisioned, provision, provision_fake
 from .settings import load_settings
@@ -26,6 +28,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="do not delete the portable NVDA copy on teardown",
     )
     group.addoption("--nvda-out-dir", default=None, help="where logs and artifacts are written")
+    group.addoption(
+        "--nvda-verbose",
+        action="store_true",
+        default=None,
+        help="do not truncate long lists in DSL failure messages",
+    )
     group.addoption(
         "--nvda-fake",
         default=None,
@@ -54,6 +62,7 @@ def nvda_settings(pytestconfig: pytest.Config):
             "allow_eval": True if option.nvda_allow_eval else None,
             "keep_portable": True if option.nvda_keep_portable else None,
             "out_dir": option.nvda_out_dir,
+            "verbose": True if option.nvda_verbose else None,
         }
     )
 
@@ -76,11 +85,13 @@ def nvda_session(_nvda_provisioned, nvda_settings) -> NvdaClient:
 
 
 @pytest.fixture
-def nvda(request: pytest.FixtureRequest, nvda_session: NvdaClient) -> NvdaClient:
+def nvda(request: pytest.FixtureRequest, nvda_session: NvdaClient) -> Iterator[Nvda]:
     if request.node.get_closest_marker("fresh_nvda"):
         nvda_session.restart_harness()
     nvda_session.reset()
-    return nvda_session
+    dsl = Nvda(nvda_session, bundle=lambda: request.getfixturevalue("addon_bundle"))
+    yield dsl
+    dsl.finish()
 
 
 @pytest.fixture(autouse=True)

@@ -3,6 +3,7 @@
 * xref:tutorial.adoc[Writing Your First Test]
 * Guide
 ** xref:guide/fixtures.adoc[Fixtures]
+** xref:guide/dsl.adoc[Writing tests with the DSL]
 ** xref:guide/speech.adoc[speech]
 ** xref:guide/braille.adoc[braille]
 ** xref:guide/keys.adoc[keys]

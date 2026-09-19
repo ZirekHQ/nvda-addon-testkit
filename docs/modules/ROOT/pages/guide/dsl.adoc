@@ -1,0 +1,154 @@
+= Writing tests with the DSL
+
+NOTE: The DSL is experimental. Names may change in minor releases until it is marked stable.
+
+The `nvda` fixture reads as a list of plain steps. Each step is one sentence on one line. Nothing
+needs nesting, and failure messages are plain numbered text with no colour or tables, so they read
+cleanly through a screen reader.
+
+The examples assume the add-on under test is installed. Call `nvda.install_addon()` in the test, or
+request the `addon_under_test` fixture.
+
+[source,python]
+----
+def test_the_gesture_announces_the_phrase(nvda):
+include::example$tests_e2e/test_demo_dsl.py[tag=dsl-basic,indent=4]
+----
+
+== Actions
+
+Actions send input or change NVDA's state. Each one records where speech begins to count for the
+next assertion, so you never pass `since=`.
+
+* `nvda.press("NVDA+t")` sends a gesture.
+* `nvda.type("text")` sends one gesture per character. A character that is not a valid gesture
+  name raises an error that names it.
+* `nvda.relaunch()` kills and relaunches the NVDA process. The add-on stays installed.
+* `nvda.restart_nvda()` runs NVDA's own restart. Needs `--nvda-allow-eval`.
+
+== Assertions
+
+* `nvda.should_hear("text")` waits for speech produced after the last action.
+* `nvda.should_hear(matching=r"\d+:\d+")` does the same with a regular expression.
+* `nvda.should_not_hear("error", for_seconds=1)` watches for a fixed time. Put a `should_hear`
+  before it, and raise `for_seconds` on slow machines.
+* `nvda.should_log("text")` waits for a log record. It searches the log since the test began, or
+  since the last relaunch, because a relaunch starts a new NVDA process with a fresh log. It does
+  not restrict the search to records written after the last action.
+* `nvda.should_have_no_errors()` fails on logged errors. Pass `ignoring=[...]` or set
+  `ignore-log-errors` to skip runner noise.
+* `nvda.should_have_addon("name", "enabled")` checks an add-on's state.
+
+Text matching is plain and case-insensitive, and finds the text anywhere in an utterance. Use
+`matching=` only when you need a regex. A string pattern is searched case-insensitively; a compiled
+pattern keeps its own flags. The wait defaults to 10 seconds. Change it per call with `within=20`,
+or for the project with `timeout = 20` under `[tool.nvda-testkit]`.
+
+Two `should_hear` calls after one action each search all of that action's speech. They do not
+check order, and two identical calls pass on a single occurrence.
+
+== Waiting for speech around a block
+
+[source,python]
+----
+def test_it_speaks_after_the_step(nvda):
+include::example$tests_e2e/test_demo_dsl.py[tag=dsl-expecting,indent=4]
+----
+
+If the block relaunches NVDA, the search covers everything the new process said.
+
+== Add-on lifecycle
+
+Mark the test with `@pytest.mark.fresh_nvda` so it starts from a clean add-on state. The included
+snippet omits the decorator.
+
+[source,python]
+----
+def test_install_and_remove(nvda):
+include::example$tests_e2e/test_demo_dsl.py[tag=dsl-lifecycle,indent=4]
+----
+
+`install_addon()` installs the bundle from the `addon-bundle` setting, or the path you pass, then
+relaunches NVDA and checks that the add-on is enabled. `remove_addon(name)` removes it, relaunches,
+and checks that it is gone. An add-on installed with `install_addon()` is removed again when the
+test ends.
+
+== Dialogs
+
+[source,python]
+----
+def test_a_dialog(nvda):
+include::example$tests_e2e/test_demo_dsl.py[tag=dsl-dialog,indent=4]
+----
+
+`open_dialog()` and `close_dialog()` are the same steps without the block. While a dialog is open,
+the steps that send input or change state raise an error instead of hanging: `press`, `type`,
+`relaunch`, `restart_nvda`, `restart_harness`, `install_addon`, `remove_addon`, `should_have_addon`,
+`expecting_speech` and `open_dialog`. The assertions that only read speech and log (`should_hear`,
+`should_not_hear`, `should_log` and `should_have_no_errors`) are not guarded and work while a dialog
+is open. The low-level passthroughs `exec`, `eval`, `exec_nowait`, `simulate_modal`,
+`wait_until_idle`, `reset` and `keys.*` are not guarded and still block. Needs
+`--nvda-allow-eval`.
+
+A test that ends with a dialog open fails after the kit closes it.
+
+== Teardown
+
+When a test ends, the `nvda` fixture runs three checks in order. With `fail-on-log-errors`, it
+checks the log first. It then closes a leaked dialog. It then removes the add-ons installed with
+`install_addon()`. Every check runs even if an earlier one fails, and the problems are reported
+together as one teardown error.
+
+== Reading failures
+
+A failed `should_hear` states what it expected, the action before it, the time waited, and what was
+heard, numbered, one item per line:
+
+----
+Expected to hear "PM" within 10 seconds after pressing NVDA+t.
+Time elapsed: 10.05 seconds.
+Heard since that action, 2 items:
+1. "12 colon 00"
+2. "Tuesday"
+Nothing matched. Matching is case-insensitive plain text; use matching= for a regex.
+----
+
+Long lists in `should_hear` and `should_log` messages show ten items. `should_have_no_errors` shows
+six unexpected and three ignored records. Run with `--nvda-verbose` to see all of them. For
+terminal output without colour, run `pytest --color=no`.
+
+== Before and after
+
+Without the DSL:
+
+[source,python]
+----
+before = nvda.speech.index()
+nvda.keys.press("NVDA+t")
+found = nvda.speech.wait_for("12:00", timeout=10, since=before)
+assert "12:00" in found.text
+----
+
+With it:
+
+[source,python]
+----
+nvda.press("NVDA+t")
+nvda.should_hear("12:00")
+----
+
+The old API keeps working, and `nvda.speech`, `nvda.keys` and the other namespaces are still there.
+
+== Project settings
+
+[source,toml]
+----
+[tool.nvda-testkit]
+timeout = 20
+fail-on-log-errors = true
+ignore-log-errors = ["nvwave", "WASAPI"]
+----
+
+With `fail-on-log-errors`, every test that uses `nvda` reports a teardown error if NVDA logged an
+unignored error. Each `ignore-log-errors` entry is a regular expression, searched
+case-insensitively.
