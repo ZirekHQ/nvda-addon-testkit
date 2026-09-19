@@ -1,6 +1,18 @@
-"""The demo add-on driven through the DSL. Each tagged block is a docs example."""
+"""The demo add-on driven through the DSL. Each tagged block is a docs example.
+
+This file assumes the demo add-on is not installed when it starts: test_demo_addon.py,
+sorted earlier, uninstalls it last.
+"""
 
 import pytest
+
+# Mirrors RUNNER_ENVIRONMENT_ERRORS in tests_e2e/conftest.py.
+RUNNER_NOISE = (
+    r"nvwave|WASAPI|audio (?:device|output|session|endpoint)",
+    r"synthDriver|synthesi[sz]|espeak|oneCore|SAPI",
+    r"braille ?display|brailleDisplayDriver|brailleInput",
+    r"UIAHandler|IAccessible|interactive desktop|desktop object",
+)
 
 
 @pytest.mark.fresh_nvda
@@ -26,7 +38,7 @@ def test_startup_logs_the_loaded_message(nvda):
     nvda.install_addon()
     nvda.relaunch()
     nvda.should_log("testkit demo add-on loaded", within=20)
-    nvda.should_have_no_errors(ignoring=[r"nvwave|WASAPI|synthDriver|UIAHandler|IAccessible"])
+    nvda.should_have_no_errors(ignoring=list(RUNNER_NOISE))
 
 
 def test_the_block_form_waits_for_the_speech_a_step_causes(nvda):

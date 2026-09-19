@@ -30,4 +30,4 @@ def test_typing_characters_beyond_lowercase_letters(nvda, text):
     try:
         nvda.type(text)
     except RpcError as error:
-        assert any(character in str(error) for character in text), str(error)
+        assert any(repr(character) in str(error) for character in text), str(error)
