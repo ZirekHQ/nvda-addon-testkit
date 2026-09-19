@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Sequence
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, overload
 
@@ -17,6 +18,7 @@ from ..namespaces.speech import SpeechNamespace
 from ..process import NvdaProcess
 from ..rpcclient import RpcClient
 from ..settings import TestkitSettings
+from .dialogs import Dialogs
 from .hearing import Hearing
 from .lifecycle import Lifecycle, no_bundle
 from .logsteps import LogSteps
@@ -29,6 +31,7 @@ class Nvda:
         self._hearing = Hearing(client, client.settings)
         self._logs = LogSteps(client, client.settings)
         self._lifecycle = Lifecycle(client, bundle)
+        self._dialogs = Dialogs(client)
 
     @property
     def client(self) -> NvdaClient:
@@ -102,15 +105,19 @@ class Nvda:
         return self.settings.timeout if within is None else within
 
     def press(self, gesture: str, *, timeout: float = 10.0) -> None:
+        self._dialogs.require_none_open()
         self._client.keys.press(gesture, timeout=timeout)
 
     def type(self, text: str, *, timeout: float = 30.0) -> None:
+        self._dialogs.require_none_open()
         self._client.keys.type_text(text, timeout=timeout)
 
     def relaunch(self, *, timeout: float = 60.0) -> None:
+        self._dialogs.require_none_open()
         self._client.restart_harness(timeout=timeout)
 
     def restart_nvda(self, *, timeout: float = 60.0) -> None:
+        self._dialogs.require_none_open()
         self._client.restart_nvda(timeout=timeout)
 
     @overload
@@ -180,18 +187,40 @@ class Nvda:
         self._logs.should_have_no_errors(ignoring)
 
     def install_addon(self, path: Path | None = None) -> None:
+        self._dialogs.require_none_open()
         self._lifecycle.install(path)
 
     def remove_addon(self, name: str) -> None:
+        self._dialogs.require_none_open()
         self._lifecycle.remove(name)
 
     def should_have_addon(self, name: str, state: str | AddonState) -> None:
         __tracebackhide__ = True
         self._lifecycle.should_have(name, state)
 
+    def open_dialog(self, scenario: str) -> None:
+        self._dialogs.open(scenario)
+
+    def close_dialog(self, gesture: str = "enter", *, within: float = 10.0) -> None:
+        __tracebackhide__ = True
+        self._dialogs.close(gesture, within=within)
+
+    def dialog(
+        self, scenario: str, *, close_with: str = "enter", within: float = 10.0
+    ) -> AbstractContextManager[None]:
+        return self._dialogs.dialog(scenario, close_with, within)
+
     def finish(self) -> None:
         __tracebackhide__ = True
-        try:
-            self._logs.check_at_teardown()
-        finally:
-            self._lifecycle.undo_all()
+        problems = []
+        for step in (
+            self._logs.check_at_teardown,
+            self._dialogs.close_leftover,
+            self._lifecycle.undo_all,
+        ):
+            try:
+                step()
+            except AssertionError as error:
+                problems.append(str(error))
+        if problems:
+            raise AssertionError("\n".join(problems))
