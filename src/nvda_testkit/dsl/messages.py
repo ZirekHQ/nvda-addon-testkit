@@ -19,9 +19,10 @@ def _count(number: int, noun: str) -> str:
     return f"{number} {noun}" if number == 1 else f"{number} {noun}s"
 
 
-def _numbered(lines: Sequence[str], verbose: bool) -> list[str]:
-    shown = list(lines) if verbose else list(lines[:MAX_SHOWN])
-    out = [f"{number}. {line}" for number, line in enumerate(shown, start=1)]
+def _numbered(lines: Sequence[str], verbose: bool, limit: int = MAX_SHOWN) -> list[str]:
+    shown = list(lines) if verbose else list(lines[:limit])
+    collapsed = [" ".join(line.split()) for line in shown]
+    out = [f"{number}. {line}" for number, line in enumerate(collapsed, start=1)]
     hidden = len(lines) - len(shown)
     if hidden:
         noun = "item" if hidden == 1 else "items"
@@ -95,10 +96,10 @@ def expected_log(
 def no_errors_failure(unexpected: Sequence[str], ignored: Sequence[str], *, verbose: bool) -> str:
     lines = [
         f"NVDA logged {_count(len(unexpected), 'unexpected error')}:",
-        *_numbered(unexpected, verbose),
+        *_numbered(unexpected, verbose, limit=6),
     ]
     if ignored:
         count = _count(len(ignored), "item")
         lines.append(f"Also logged, and ignored by ignore-log-errors, {count}:")
-        lines.extend(_numbered(ignored, verbose))
+        lines.extend(_numbered(ignored, verbose, limit=3))
     return "\n".join(lines)

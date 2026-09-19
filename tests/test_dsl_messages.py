@@ -46,7 +46,13 @@ def test_long_lists_are_truncated_with_the_count_stated():
 
 def test_verbose_shows_everything():
     lines = _expected([f"item {n}" for n in range(12)], verbose=True).splitlines()
+    assert lines[3:6] == [
+        '1. "item 0"',
+        '2. "item 1"',
+        '3. "item 2"',
+    ]
     assert '12. "item 11"' in lines
+    assert "more items not shown" not in "\n".join(lines)
 
 
 def test_unexpected_hearing_lists_the_offending_speech():
@@ -91,3 +97,63 @@ def test_no_errors_failure_separates_ignored_records():
         "Also logged, and ignored by ignore-log-errors, 1 item:",
         "1. ERROR: nvwave",
     ]
+
+
+def test_truncation_singular_with_one_more_item():
+    lines = _expected([f"item {n}" for n in range(11)]).splitlines()
+    assert lines[-2] == "1 more item not shown; run with --nvda-verbose to see all"
+
+
+def test_plural_error_count():
+    text = messages.no_errors_failure(["ERROR: boom", "ERROR: crash"], [], verbose=False)
+    assert text.splitlines()[0] == "NVDA logged 2 unexpected errors:"
+
+
+def test_regex_hint_in_expected_to_hear():
+    lines = _expected(["x"], hint=messages.REGEX_HINT).splitlines()
+    assert (
+        "Nothing matched. The pattern is a regular expression, searched case-insensitively."
+    ) in lines[-1]
+
+
+def test_newlines_collapsed_in_quoted_items():
+    text = messages.expected_to_hear(
+        '"x"',
+        within=1,
+        elapsed=1.0,
+        mark=PRESS,
+        heard=["a\nb"],
+        verbose=False,
+        hint=messages.PLAIN_HINT,
+    )
+    assert '1. "a b"' in text.splitlines()
+
+
+def test_newlines_collapsed_in_log_records():
+    text = messages.expected_log(
+        '"x"',
+        within=1,
+        elapsed=1.0,
+        records=["ERROR: a\nstack\ntrace"],
+        verbose=False,
+        hint=messages.PLAIN_HINT,
+    )
+    assert "1. ERROR: a stack trace" in text.splitlines()
+
+
+def test_no_errors_failure_with_many_records_stays_under_15_lines():
+    unexpected = [f"ERROR: unexpected_{n}" for n in range(20)]
+    ignored = [f"ERROR: ignored_{n}" for n in range(20)]
+    text = messages.no_errors_failure(unexpected, ignored, verbose=False)
+    lines = text.splitlines()
+    assert len(lines) <= 15
+    assert "14 more items not shown" in text
+    assert "17 more items not shown" in text
+
+
+def test_no_errors_failure_verbose_shows_all_records():
+    unexpected = [f"ERROR: unexpected_{n}" for n in range(20)]
+    ignored = [f"ERROR: ignored_{n}" for n in range(20)]
+    text = messages.no_errors_failure(unexpected, ignored, verbose=True)
+    assert "20. ERROR: unexpected_19" in text
+    assert "20. ERROR: ignored_19" in text
