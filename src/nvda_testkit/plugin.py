@@ -88,7 +88,7 @@ def nvda(request: pytest.FixtureRequest, nvda_session: NvdaClient):
     if request.node.get_closest_marker("fresh_nvda"):
         nvda_session.restart_harness()
     nvda_session.reset()
-    dsl = Nvda(nvda_session)
+    dsl = Nvda(nvda_session, bundle=lambda: request.getfixturevalue("addon_bundle"))
     yield dsl
     dsl.finish()
 

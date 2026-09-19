@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Any, overload
 
 from ..client import NvdaClient, NvdaVersion
-from ..namespaces.addons import AddonsNamespace
+from ..namespaces.addons import AddonsNamespace, AddonState
 from ..namespaces.braille import BrailleNamespace
 from ..namespaces.config import ConfigNamespace
 from ..namespaces.keys import KeysNamespace
@@ -17,15 +18,17 @@ from ..process import NvdaProcess
 from ..rpcclient import RpcClient
 from ..settings import TestkitSettings
 from .hearing import Hearing
+from .lifecycle import Lifecycle, no_bundle
 from .logsteps import LogSteps
 from .matching import build_matcher
 
 
 class Nvda:
-    def __init__(self, client: NvdaClient) -> None:
+    def __init__(self, client: NvdaClient, *, bundle: Callable[[], Path] = no_bundle) -> None:
         self._client = client
         self._hearing = Hearing(client, client.settings)
         self._logs = LogSteps(client, client.settings)
+        self._lifecycle = Lifecycle(client, bundle)
 
     @property
     def client(self) -> NvdaClient:
@@ -176,6 +179,17 @@ class Nvda:
         __tracebackhide__ = True
         self._logs.should_have_no_errors(ignoring)
 
+    def install_addon(self, path: Path | None = None) -> None:
+        self._lifecycle.install(path)
+
+    def remove_addon(self, name: str) -> None:
+        self._lifecycle.remove(name)
+
+    def should_have_addon(self, name: str, state: str | AddonState) -> None:
+        __tracebackhide__ = True
+        self._lifecycle.should_have(name, state)
+
     def finish(self) -> None:
         __tracebackhide__ = True
+        self._lifecycle.undo_all()
         self._logs.check_at_teardown()
