@@ -44,7 +44,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - run: "pip install --only-binary :all: build twine"
       # Without this, hatchling's `artifacts = ["src/nvda_testkit/_spy/*.nvda-addon"]`
       # matches nothing -- the bundle is gitignored and only exists once built --
