@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pytest
 
+from nvda_testkit.client import NvdaClient
+
 FAKE = Path(__file__).parent / "fake_nvda.py"
 
 
@@ -219,7 +221,10 @@ def test_addon_bundle_returns_the_single_match(pytester):
     pytester.runpytest().assert_outcomes(passed=1)
 
 
-def test_reset_failure_during_teardown_warns_instead_of_failing(harness):
+def test_reset_failure_during_teardown_warns_instead_of_failing(harness, monkeypatch):
+    # Restores the class-level reset patch that this test's in-process pytester
+    # run leaves behind, which would break later tests using the nvda fixture.
+    monkeypatch.setattr(NvdaClient, "reset", NvdaClient.reset)
     harness.makeconftest(
         """
         from nvda_testkit.client import NvdaClient
@@ -295,3 +300,50 @@ def test_a_test_that_does_not_ask_for_nvda_never_starts_it(harness):
     result.assert_outcomes(passed=1)
     marker = harness.path / "provisioned.marker"
     assert not marker.exists(), "nvda_reset must stay lazy: NVDA must never be provisioned"
+
+
+def test_nvda_verbose_flag_reaches_the_settings(harness):
+    harness.makepyfile(
+        """
+        def test_flag(nvda_settings):
+            assert nvda_settings.verbose is True
+        """
+    )
+    harness.runpytest("--nvda-verbose").assert_outcomes(passed=1)
+
+
+def test_the_nvda_fixture_offers_the_dsl(harness):
+    harness.makepyfile(
+        """
+        def test_dsl(nvda):
+            nvda.press("NVDA+t")
+            nvda.speech.speak("12:00 PM")
+            nvda.should_hear("12:00")
+            assert nvda.speech.index() == 1
+        """
+    )
+    harness.runpytest().assert_outcomes(passed=1)
+
+
+def test_a_dsl_failure_prints_the_plain_message(harness):
+    harness.makepyfile(
+        """
+        def test_dsl(nvda):
+            nvda.press("NVDA+t")
+            nvda.should_hear("PM", within=0.2)
+        """
+    )
+    result = harness.runpytest()
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(['E *AssertionError: Expected to hear "PM" within 0.2 seconds*'])
+
+
+def test_fail_on_log_errors_reports_a_teardown_error(harness):
+    harness.makepyprojecttoml("[tool.nvda-testkit]\nfail-on-log-errors = true\n")
+    harness.makepyfile(
+        """
+        def test_logs_an_error(nvda):
+            nvda.rpc.call("log_emit", "ERROR", "boom")
+        """
+    )
+    harness.runpytest().assert_outcomes(passed=1, errors=1)

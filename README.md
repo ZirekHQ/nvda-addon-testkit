@@ -17,6 +17,15 @@ def test_my_addon_announces_itself(nvda, addon_under_test):
     nvda.log.assert_no_errors()
 ```
 
+The same test reads as plain steps with the (experimental) DSL:
+
+```python
+def test_my_addon_announces_itself(nvda, addon_under_test):
+    nvda.press("NVDA+shift+m")
+    nvda.should_hear("my add-on is ready")
+    nvda.should_have_no_errors()
+```
+
 ## Install
 
 ```bash
