@@ -52,10 +52,11 @@ class Dialogs:
     def close_leftover(self) -> None:
         if not self._open:
             return
-        self._client.simulate_modal("escape", timeout=5.0)
-        self._open = False
         try:
+            self._client.simulate_modal("escape", timeout=5.0)
             self._client.wait_until_idle(timeout=5.0)
         except RpcError:
             self._client.restart_harness()
+        finally:
+            self._open = False
         raise AssertionError(LEAK)

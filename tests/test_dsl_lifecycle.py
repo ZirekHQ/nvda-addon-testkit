@@ -106,8 +106,9 @@ def test_a_failing_undo_is_not_retried_by_a_second_finish(make_client, bundle):
         raise RpcError("boom")
 
     nvda.client.addons.remove = broken
-    with pytest.raises(RpcError):
+    with pytest.raises(AssertionError, match="RpcError: boom") as raised:
         nvda.finish()
+    assert isinstance(raised.value.__cause__, RpcError)
     nvda.finish()
 
 

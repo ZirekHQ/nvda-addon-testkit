@@ -25,6 +25,20 @@ from .logsteps import LogSteps
 from .matching import build_matcher
 
 
+def _failure_of(step: Callable[[], None]) -> Exception | None:
+    try:
+        step()
+    except Exception as error:
+        return error
+    return None
+
+
+def _describe(error: Exception) -> str:
+    if isinstance(error, AssertionError):
+        return str(error)
+    return f"{type(error).__name__}: {error}"
+
+
 class Nvda:
     def __init__(self, client: NvdaClient, *, bundle: Callable[[], Path] = no_bundle) -> None:
         self._client = client
@@ -212,15 +226,11 @@ class Nvda:
 
     def finish(self) -> None:
         __tracebackhide__ = True
-        problems = []
-        for step in (
+        steps = (
             self._logs.check_at_teardown,
             self._dialogs.close_leftover,
             self._lifecycle.undo_all,
-        ):
-            try:
-                step()
-            except AssertionError as error:
-                problems.append(str(error))
-        if problems:
-            raise AssertionError("\n".join(problems))
+        )
+        failures = [failure for failure in map(_failure_of, steps) if failure is not None]
+        if failures:
+            raise AssertionError("\n".join(map(_describe, failures))) from failures[0]
