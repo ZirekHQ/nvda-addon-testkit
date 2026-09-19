@@ -94,3 +94,14 @@ def test_should_not_hear_fails_with_the_offending_speech(hearing):
     client.speech.speak("an error occurred")
     with pytest.raises(AssertionError, match='Expected not to hear "error"'):
         steps.should_not_hear(build_matcher("error", None), for_seconds=0.2, mark=START)
+
+
+def test_empty_text_is_rejected():
+    with pytest.raises(ValueError, match="text must not be empty"):
+        build_matcher("", None)
+
+
+@pytest.mark.parametrize("matching", ["", re.compile("")])
+def test_empty_matching_is_rejected(matching):
+    with pytest.raises(ValueError, match="matching must not be empty"):
+        build_matcher(None, matching)

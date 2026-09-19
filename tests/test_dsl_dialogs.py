@@ -133,6 +133,8 @@ def test_finish_joins_the_log_and_dialog_problems(make_client, tmp_path):
     assert "unexpected error" in message
     assert "still open at the end" in message
     assert message.index("unexpected error") < message.index("still open at the end")
+    assert message.startswith("Teardown problem 1: ")
+    assert "\nTeardown problem 2: " in message
 
 
 def test_the_dialog_block_closes_even_when_the_body_raises(make_dsl):
@@ -166,3 +168,13 @@ def test_every_action_is_refused_while_a_dialog_is_open(make_client, tmp_path, a
     nvda.open_dialog(SCENARIO)
     with pytest.raises(TestkitError, match=r"A dialog is open\. Call close_dialog"):
         attempt(nvda, bundle)
+
+
+def test_should_have_addon_is_refused_while_a_dialog_is_open(make_dsl):
+    nvda = make_dsl(allow_eval=True)
+    nvda.open_dialog(SCENARIO)
+    try:
+        with pytest.raises(TestkitError, match=r"A dialog is open"):
+            nvda.should_have_addon("demo-addon", "enabled")
+    finally:
+        nvda.close_dialog("escape")

@@ -83,3 +83,21 @@ def test_dsl_settings_default_to_the_documented_values():
 def test_verbose_can_be_overridden():
     settings = load_settings(Path("does-not-exist.toml"), overrides={"verbose": True})
     assert settings.verbose is True
+
+
+def test_a_bare_string_for_ignore_log_errors_is_one_pattern_not_characters(tmp_path):
+    path = tmp_path / "pyproject.toml"
+    path.write_text('[tool.nvda-testkit]\nignore-log-errors = "nvwave"\n')
+    assert load_settings(path).ignore_log_errors == ("nvwave",)
+
+
+def test_a_list_for_ignore_log_errors_keeps_every_pattern(tmp_path):
+    path = tmp_path / "pyproject.toml"
+    path.write_text('[tool.nvda-testkit]\nignore-log-errors = ["a", "b"]\n')
+    assert load_settings(path).ignore_log_errors == ("a", "b")
+
+
+def test_a_bare_string_for_modules_is_one_module(tmp_path):
+    path = tmp_path / "pyproject.toml"
+    path.write_text('[tool.nvda-testkit]\nmodules = "audio"\n')
+    assert load_settings(path).modules == ("audio",)

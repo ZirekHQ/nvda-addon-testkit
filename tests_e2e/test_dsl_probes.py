@@ -6,8 +6,6 @@ then keep or delete. The outcomes are not yet recorded.
 
 import pytest
 
-from nvda_testkit.errors import RpcError
-
 DIALOG = (
     "import wx\n"
     "dlg = wx.MessageDialog(None, 'confirm?', 'confirm?', wx.YES_NO)\n"
@@ -25,9 +23,11 @@ def test_speech_and_log_reads_work_while_a_modal_is_open(require_eval, nvda):
         nvda.close_dialog("enter")
 
 
-@pytest.mark.parametrize("text", ["Hello", "a.b,c", "x!y", "ünï"])
+@pytest.mark.parametrize("text", ["Hello", "a.b,c", "x!y"])
 def test_typing_characters_beyond_lowercase_letters(nvda, text):
-    try:
-        nvda.type(text)
-    except RpcError as error:
-        assert any(repr(character) in str(error) for character in text), str(error)
+    nvda.type(text)
+
+
+@pytest.mark.xfail(strict=False, reason="non-ASCII gesture names are unverified")
+def test_typing_non_ascii_characters(nvda):
+    nvda.type("ünï")

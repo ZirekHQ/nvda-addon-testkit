@@ -42,7 +42,7 @@ class TestkitSettings:
 
 def _coerce(field: str, value):
     if field in ("modules", "ignore_log_errors"):
-        return tuple(value)
+        return (value,) if isinstance(value, str) else tuple(value)
     if field == "out_dir":
         return Path(value)
     if field in ("timeout_scale", "timeout"):

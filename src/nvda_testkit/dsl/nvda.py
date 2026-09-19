@@ -40,6 +40,13 @@ def _describe(error: Exception) -> str:
     return f"{type(error).__name__}: {error}"
 
 
+def _join_problems(failures: list[Exception]) -> str:
+    return "\n".join(
+        f"Teardown problem {number}: {_describe(failure)}"
+        for number, failure in enumerate(failures, start=1)
+    )
+
+
 class Nvda:
     def __init__(self, client: NvdaClient, *, bundle: Callable[[], Path] = no_bundle) -> None:
         self._client = client
@@ -237,6 +244,7 @@ class Nvda:
 
     def should_have_addon(self, name: str, state: str | AddonState) -> None:
         __tracebackhide__ = True
+        self._dialogs.require_none_open()
         self._lifecycle.should_have(name, state)
 
     def open_dialog(self, scenario: str) -> None:
@@ -260,4 +268,4 @@ class Nvda:
         )
         failures = [failure for failure in map(_failure_of, steps) if failure is not None]
         if failures:
-            raise AssertionError("\n".join(map(_describe, failures))) from failures[0]
+            raise AssertionError(_join_problems(failures)) from failures[0]

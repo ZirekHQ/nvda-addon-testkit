@@ -28,9 +28,17 @@ def _regex(matching: str | re.Pattern[str]) -> Matcher:
     return Matcher(pattern, f'text matching the pattern "{pattern.pattern}"', messages.REGEX_HINT)
 
 
+def _pattern_text(matching: str | re.Pattern[str]) -> str:
+    return matching.pattern if isinstance(matching, re.Pattern) else matching
+
+
 def build_matcher(text: str | None, matching: str | re.Pattern[str] | None) -> Matcher:
     if text is not None and matching is None:
+        if not text:
+            raise ValueError("text must not be empty.")
         return _plain(text)
     if matching is not None and text is None:
+        if not _pattern_text(matching):
+            raise ValueError("matching must not be empty.")
         return _regex(matching)
     raise ValueError("Give exactly one of text or matching.")

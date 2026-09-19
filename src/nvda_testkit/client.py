@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -25,6 +26,10 @@ class NvdaVersion:
     api_version: str | None
     api_compat_to: str | None
     channel: str = "unknown"
+
+
+_SETTLE_BUDGET = 1.0
+_SETTLE_POLL = 0.05
 
 
 class NvdaClient:
@@ -66,13 +71,20 @@ class NvdaClient:
     def last_action_index(self) -> int:
         return self.last_action.index
 
+    def _settle_before_marking(self) -> None:
+        deadline = time.monotonic() + _SETTLE_BUDGET
+        while not self._rpc.call("wait_until_idle", 5.0) and time.monotonic() < deadline:
+            time.sleep(_SETTLE_POLL)
+
     def mark_action(self, label: str) -> ActionMark:
         """Record where speech from the action about to run begins.
 
         Waits for NVDA to go idle first so speech still in flight from the
-        previous action is not attributed to this one.
+        previous action is not attributed to this one. If NVDA still reports
+        queued work after about a second, the mark is recorded anyway, so
+        late speech from the previous action can be attributed to this one.
         """
-        self._rpc.call("wait_until_idle", 5.0)
+        self._settle_before_marking()
         self.last_action = ActionMark(int(self._rpc.call("speech_index")), label)
         return self.last_action
 

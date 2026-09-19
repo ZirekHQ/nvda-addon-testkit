@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -84,7 +85,7 @@ def nvda_session(_nvda_provisioned, nvda_settings) -> NvdaClient:
 
 
 @pytest.fixture
-def nvda(request: pytest.FixtureRequest, nvda_session: NvdaClient):
+def nvda(request: pytest.FixtureRequest, nvda_session: NvdaClient) -> Iterator[Nvda]:
     if request.node.get_closest_marker("fresh_nvda"):
         nvda_session.restart_harness()
     nvda_session.reset()

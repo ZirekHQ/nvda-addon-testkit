@@ -1,5 +1,7 @@
 import pytest
 
+from nvda_testkit.settings import load_settings
+
 
 def _emit(nvda, level, message):
     nvda.rpc.call("log_emit", level, message)
@@ -60,3 +62,12 @@ def test_finish_fails_when_fail_on_log_errors_is_on(make_dsl):
     _emit(nvda, "ERROR", "boom")
     with pytest.raises(AssertionError, match="unexpected error"):
         nvda.finish()
+
+
+def test_a_bare_string_setting_does_not_ignore_unrelated_errors(make_dsl, tmp_path):
+    path = tmp_path / "pyproject.toml"
+    path.write_text('[tool.nvda-testkit]\nignore-log-errors = "nvwave"\n')
+    nvda = make_dsl(ignore_log_errors=load_settings(path).ignore_log_errors)
+    _emit(nvda, "ERROR", "unhandled exception in my add-on")
+    with pytest.raises(AssertionError, match="NVDA logged 1 unexpected error"):
+        nvda.should_have_no_errors()

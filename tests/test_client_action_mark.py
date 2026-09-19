@@ -1,3 +1,6 @@
+import itertools
+import time
+
 from nvda_testkit.actionmark import START, ActionMark
 
 
@@ -66,3 +69,36 @@ def test_labels_read_naturally_in_messages():
     assert ActionMark(2, "pressing NVDA+t").since() == "since that action"
     assert START.after() == "from the start of the test"
     assert START.since() == "since the start of the test"
+
+
+def _script_wait_until_idle(client, monkeypatch, answers):
+    real_call = client.rpc.call
+    idle_calls = []
+
+    def call(method, *args, **kwargs):
+        if method != "wait_until_idle":
+            return real_call(method, *args, **kwargs)
+        idle_calls.append(args)
+        return next(answers)
+
+    monkeypatch.setattr(client.rpc, "call", call)
+    return idle_calls
+
+
+def test_the_mark_waits_until_the_idle_check_reports_idle(make_client, monkeypatch):
+    client = make_client()
+    client.speech.speak("earlier")
+    idle_calls = _script_wait_until_idle(client, monkeypatch, iter([False, False, True]))
+    mark = client.mark_action("acting")
+    assert len(idle_calls) == 3
+    assert mark == ActionMark(1, "acting")
+
+
+def test_the_mark_is_still_recorded_when_nvda_never_reports_idle(make_client, monkeypatch):
+    client = make_client()
+    idle_calls = _script_wait_until_idle(client, monkeypatch, itertools.repeat(False))
+    started = time.monotonic()
+    mark = client.mark_action("acting")
+    assert time.monotonic() - started < 3
+    assert idle_calls
+    assert mark == ActionMark(0, "acting")
