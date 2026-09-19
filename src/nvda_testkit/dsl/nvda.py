@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Sequence
-from contextlib import AbstractContextManager
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from typing import Any, overload
 
@@ -155,6 +155,27 @@ class Nvda:
             within=self._within(within),
             mark=self._client.last_action,
         )
+
+    def _pid(self) -> int:
+        handshake = self._client.process.handshake
+        return handshake.pid if handshake else -1
+
+    @contextmanager
+    def expecting_speech(
+        self,
+        text: str | None = None,
+        *,
+        matching: str | re.Pattern[str] | None = None,
+        within: float | None = None,
+    ) -> Iterator[None]:
+        __tracebackhide__ = True
+        self._dialogs.require_none_open()
+        matcher = build_matcher(text, matching)
+        entry = self._client.mark_action("starting the block")
+        pid = self._pid()
+        yield
+        mark = entry if self._pid() == pid else self._client.last_action
+        self._hearing.should_hear(matcher, within=self._within(within), mark=mark)
 
     @overload
     def should_not_hear(self, text: str, *, for_seconds: float = 1.0) -> None: ...
