@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pytest
 
+from nvda_testkit.client import NvdaClient
+
 FAKE = Path(__file__).parent / "fake_nvda.py"
 
 
@@ -219,7 +221,8 @@ def test_addon_bundle_returns_the_single_match(pytester):
     pytester.runpytest().assert_outcomes(passed=1)
 
 
-def test_reset_failure_during_teardown_warns_instead_of_failing(harness):
+def test_reset_failure_during_teardown_warns_instead_of_failing(harness, monkeypatch):
+    monkeypatch.setattr(NvdaClient, "reset", NvdaClient.reset)
     harness.makeconftest(
         """
         from nvda_testkit.client import NvdaClient
@@ -305,3 +308,29 @@ def test_nvda_verbose_flag_reaches_the_settings(harness):
         """
     )
     harness.runpytest("--nvda-verbose").assert_outcomes(passed=1)
+
+
+def test_the_nvda_fixture_offers_the_dsl(harness):
+    harness.makepyfile(
+        """
+        def test_dsl(nvda):
+            nvda.press("NVDA+t")
+            nvda.speech.speak("12:00 PM")
+            nvda.should_hear("12:00")
+            assert nvda.speech.index() == 1
+        """
+    )
+    harness.runpytest().assert_outcomes(passed=1)
+
+
+def test_a_dsl_failure_prints_the_plain_message(harness):
+    harness.makepyfile(
+        """
+        def test_dsl(nvda):
+            nvda.press("NVDA+t")
+            nvda.should_hear("PM", within=0.2)
+        """
+    )
+    result = harness.runpytest()
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(['E *AssertionError: Expected to hear "PM" within 0.2 seconds*'])

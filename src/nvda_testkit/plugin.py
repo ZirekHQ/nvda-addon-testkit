@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from .client import NvdaClient
+from .dsl import Nvda
 from .errors import ProvisionError
 from .provisioning import Provisioned, provision, provision_fake
 from .settings import load_settings
@@ -83,11 +84,11 @@ def nvda_session(_nvda_provisioned, nvda_settings) -> NvdaClient:
 
 
 @pytest.fixture
-def nvda(request: pytest.FixtureRequest, nvda_session: NvdaClient) -> NvdaClient:
+def nvda(request: pytest.FixtureRequest, nvda_session: NvdaClient) -> Nvda:
     if request.node.get_closest_marker("fresh_nvda"):
         nvda_session.restart_harness()
     nvda_session.reset()
-    return nvda_session
+    return Nvda(nvda_session)
 
 
 @pytest.fixture(autouse=True)

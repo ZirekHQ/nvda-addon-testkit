@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from nvda_testkit.client import NvdaClient
+from nvda_testkit.dsl import Nvda
 from nvda_testkit.process import NvdaProcess
 from nvda_testkit.rpcclient import RpcClient
 from nvda_testkit.settings import TestkitSettings
@@ -82,3 +83,11 @@ def make_client(fake_nvda):
     for client, proc in started:
         client.close()
         proc.kill()
+
+
+@pytest.fixture
+def make_dsl(make_client):
+    def build(**settings) -> Nvda:
+        return Nvda(make_client(**settings))
+
+    return build
