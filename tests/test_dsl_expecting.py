@@ -35,6 +35,14 @@ def test_a_relaunch_inside_the_block_searches_the_new_process(make_dsl):
         nvda.client.speech.speak("ready")
 
 
+def test_startup_speech_before_a_later_action_after_a_relaunch_still_counts(make_dsl):
+    nvda = make_dsl()
+    with nvda.expecting_speech("ready", within=1):
+        nvda.relaunch(timeout=20)
+        nvda.client.speech.speak("ready")
+        nvda.press("a")
+
+
 def test_a_regex_can_be_expected(make_dsl):
     nvda = make_dsl()
     with nvda.expecting_speech(matching=r"\d+ items", within=1):

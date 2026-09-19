@@ -8,6 +8,7 @@ from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from typing import Any, overload
 
+from ..actionmark import ActionMark
 from ..client import NvdaClient, NvdaVersion
 from ..namespaces.addons import AddonsNamespace, AddonState
 from ..namespaces.braille import BrailleNamespace
@@ -160,6 +161,11 @@ class Nvda:
         handshake = self._client.process.handshake
         return handshake.pid if handshake else -1
 
+    def _search_mark(self, entry: ActionMark, pid: int) -> ActionMark:
+        if self._pid() == pid:
+            return entry
+        return ActionMark(0, "relaunching NVDA")
+
     @contextmanager
     def expecting_speech(
         self,
@@ -174,7 +180,7 @@ class Nvda:
         entry = self._client.mark_action("starting the block")
         pid = self._pid()
         yield
-        mark = entry if self._pid() == pid else self._client.last_action
+        mark = self._search_mark(entry, pid)
         self._hearing.should_hear(matcher, within=self._within(within), mark=mark)
 
     @overload
