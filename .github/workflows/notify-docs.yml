@@ -1,6 +1,12 @@
 name: Notify docs site
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'tests_e2e/**'
+      - 'examples/demo-addon/**'
   release:
     types: [published]
   workflow_dispatch:
