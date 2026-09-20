@@ -34,7 +34,7 @@ jobs:
       version: ${{ steps.next.outputs.version }}
       sha: ${{ steps.resolve-sha.outputs.sha }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: main
           fetch-depth: 0
@@ -90,7 +90,7 @@ jobs:
       SHA: ${{ needs.compute-version.outputs.sha }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ needs.compute-version.outputs.sha }}
           persist-credentials: true
