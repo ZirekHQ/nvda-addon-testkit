@@ -152,3 +152,19 @@ jobs:
     uses: ./.github/workflows/publish-python.yml # zizmor: ignore[self-repository] low-severity style suggestion (use '$/...'), not a finding -- zizmor.yml doesn't pin a CLI version to confirm '$/' support
     with:
       ref: v${{ needs.compute-version.outputs.version }}
+
+  announce:
+    name: Announce the release
+    needs: [compute-version, tag-and-release, pypi]
+    if: >-
+      ${{ !cancelled() && inputs.dry_run != true &&
+      needs.tag-and-release.result == 'success' && needs.pypi.result == 'success' }}
+    permissions: {}
+    uses: ZirekHQ/.github/.github/workflows/announce-release.yml@402ea18a978f5dbe0f34683b7dd49ab579862d41 # main
+    with:
+      tag: v${{ needs.compute-version.outputs.version }}
+    secrets:
+      MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
+      MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+      BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+      BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
