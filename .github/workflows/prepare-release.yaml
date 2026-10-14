@@ -7,7 +7,7 @@ name: Prepare release
 # tag-and-release and pypi live here rather than in a separate workflow_call file: PyPI's
 # trusted-publisher attestation check verifies the Build Config URI against the *root*
 # dispatched workflow, not the immediate caller, so a second layer of workflow_call between
-# this dispatch and publish-python.yml breaks it (confirmed by three failed release runs
+# this dispatch and publish-python.yaml breaks it (confirmed by three failed release runs
 # where the Build Config URI reported the wrong workflow entirely).
 on:
   workflow_dispatch:
@@ -149,7 +149,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/publish-python.yml # zizmor: ignore[self-repository] low-severity style suggestion (use '$/...'), not a finding -- zizmor.yml doesn't pin a CLI version to confirm '$/' support
+    uses: ./.github/workflows/publish-python.yaml # zizmor: ignore[self-repository] low-severity style suggestion (use '$/...'), not a finding -- zizmor.yaml doesn't pin a CLI version to confirm '$/' support
     with:
       ref: v${{ needs.compute-version.outputs.version }}
 

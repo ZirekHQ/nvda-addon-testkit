@@ -4,7 +4,7 @@ name: Sonar fork scan
 # implementation: SONAR_TOKEN is needed to post results, but no matter how
 # fork source reaches a job holding SONAR_TOKEN, that job must not execute
 # anything derived from the fork. A previous version of this workflow chained
-# automatically off sonar-fork-coverage.yml via workflow_run and used
+# automatically off sonar-fork-coverage.yaml via workflow_run and used
 # actions/checkout on the PR head -- actions/checkout itself refuses that
 # combination by default ("pwn request" protection), and a purpose-built
 # action for this exact problem (matrix-org/sonarcloud-workflow-action) was
@@ -22,7 +22,7 @@ name: Sonar fork scan
 # Unlike a plain checkout-and-build of the fork's code (e.g. a workflow that
 # checks out the fork head and runs its own build scripts in a job that holds
 # SONAR_TOKEN), this job still never executes anything derived from the fork:
-# it downloads the tar archive sonar-fork-coverage.yml built (test suite
+# it downloads the tar archive sonar-fork-coverage.yaml built (test suite
 # already executed there, safely, with no secrets) and extracts it with plain
 # `tar`, never a git operation against fork content. The scanner only reads
 # the result statically.
@@ -74,8 +74,8 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PR_NUMBER: ${{ github.event.issue.number }}
     steps:
-      # sonar-fork-coverage.yml only builds its workspace artifact for actual
-      # fork PRs -- same-repo PRs are already scanned by sonar.yml -- so a
+      # sonar-fork-coverage.yaml only builds its workspace artifact for actual
+      # fork PRs -- same-repo PRs are already scanned by sonar.yaml -- so a
       # /sonar comment on a same-repo PR must skip `scan` rather than fail on
       # a missing artifact.
       - name: Resolve whether the PR is a fork
@@ -120,7 +120,7 @@ jobs:
         env:
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
         run: |
-          RUN_ID=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/sonar-fork-coverage.yml/runs?event=pull_request&status=success&head_sha=$HEAD_SHA&per_page=1" \
+          RUN_ID=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/sonar-fork-coverage.yaml/runs?event=pull_request&status=success&head_sha=$HEAD_SHA&per_page=1" \
             --jq '.workflow_runs[0].id')
           if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
             echo "::error::No successful 'Sonar fork coverage' run found for $HEAD_SHA. Push a commit or re-run that workflow first."
