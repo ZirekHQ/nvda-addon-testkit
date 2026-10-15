@@ -54,10 +54,10 @@ Use the pull request template. Link the issue with `Closes #N` in the PR body wh
 
 Releases are tag-driven, not version-bumped by hand — `pyproject.toml` has no `version` field. The `hatch-vcs` build hook derives the package version from the git tag at build time.
 
-1. Run `prepare-release.yml` (Actions tab → **Prepare release** → Run workflow). Leave `new_tag` blank to let it compute the next version from Conventional Commit subjects since the last tag (`scripts/next-version.sh`); pass a `vX.Y.Z` value there instead to override it. Check `dry_run` to only see the computed version without tagging or publishing anything.
+1. Run `prepare-release.yaml` (Actions tab → **Prepare release** → Run workflow). Leave `new_tag` blank to let it compute the next version from Conventional Commit subjects since the last tag (`scripts/next-version.sh`); pass a `vX.Y.Z` value there instead to override it. Check `dry_run` to only see the computed version without tagging or publishing anything.
 2. The `release` environment gate requires a maintainer approval before anything happens — that's the human checkpoint, not the version computation.
-3. Once approved, `prepare-release.yml`'s `tag-and-release` job tags `main` at the resolved commit, force-moves the `v<major>` tag consumers pin (README and GitHub Marketplace listings use `@v1`), and publishes the GitHub Release with auto-generated notes.
-4. That tag feeds `publish-python.yml`, which builds the sdist/wheel and uploads to PyPI via Trusted Publishing — no token to rotate.
+3. Once approved, `prepare-release.yaml`'s `tag-and-release` job tags `main` at the resolved commit, force-moves the `v<major>` tag consumers pin (README and GitHub Marketplace listings use `@v1`), and publishes the GitHub Release with auto-generated notes.
+4. That tag feeds `publish-python.yaml`, which builds the sdist/wheel and uploads to PyPI via Trusted Publishing — no token to rotate.
 
 ### Why not fully automate this (conventional commits + semantic-release)?
 

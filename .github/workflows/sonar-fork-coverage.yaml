@@ -1,13 +1,13 @@
 name: Sonar fork coverage
 
-# The Sonar job in sonar.yml is deliberately skipped for fork PRs because
+# The Sonar job in sonar.yaml is deliberately skipped for fork PRs because
 # forks are never given SONAR_TOKEN. This workflow builds what a real scan
 # needs -- a full checkout (including git history, for Sonar's blame/new-code
 # detection) plus a coverage report -- using only the read-only, secret-less
 # token that `pull_request` gets for fork PRs, and packages it as a plain tar
 # archive artifact.
 #
-# sonar-fork-scan.yml (triggered by a maintainer commenting `/sonar` on the
+# sonar-fork-scan.yaml (triggered by a maintainer commenting `/sonar` on the
 # PR after reviewing the diff) extracts that archive with plain `tar`, never a
 # git operation, so it never runs git fetch/checkout against fork content and
 # never executes anything from the fork -- the archive is only read
@@ -27,7 +27,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Mirrors sonar.yml's windows_coverage job: windows_only-marked tests only
+  # Mirrors sonar.yaml's windows_coverage job: windows_only-marked tests only
   # run on Windows, so without this leg they'd land in the fork's report as
   # permanently uncovered.
   windows_coverage:
@@ -57,7 +57,7 @@ jobs:
         # itself as a pytest11 entry-point plugin, so pytest's own plugin
         # loader imports nvda_testkit's modules before pytest-cov's --cov
         # flag would start tracing, permanently miscounting every top-level
-        # def/class line in them as uncovered. Mirrors sonar.yml.
+        # def/class line in them as uncovered. Mirrors sonar.yaml.
         run: coverage run -m pytest -v
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -74,7 +74,7 @@ jobs:
     needs: ["windows_coverage"]
     permissions:
       contents: read
-    # Same-repo PRs are scanned directly by sonar.yml; only forks need this.
+    # Same-repo PRs are scanned directly by sonar.yaml; only forks need this.
     if: github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
