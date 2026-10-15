@@ -10,39 +10,45 @@ a transformed value and sits in NVDA's real speech path. Observing through it
 risks changing what the user hears.
 """
 
+from __future__ import annotations
+
 import threading
 import time
+from typing import Any
 
+import speech
+
+from .capped_log import CappedLog
+from .mainthread import run_on_main_thread
 from .registry import rpc_method
 from .serialise import serialise_sequence
 
 _LOCK = threading.RLock()
-_SEQUENCES = []
+_SEQUENCES = CappedLog()
 _CANCELLATIONS = 0
 _INSTALLED = False
 
 
-def _on_speech_queued(speechSequence=None, **kwargs):  # NOSONAR
+def _on_speech_queued(speechSequence: Any = None, **kwargs: Any) -> None:  # NOSONAR
     if not speechSequence:
         return
-    entry = {
-        "items": serialise_sequence(speechSequence),
-        "timestamp": time.time(),
-        "cancelled": False,
-    }
-    with _LOCK:
-        _SEQUENCES.append(entry)
+    _SEQUENCES.append(
+        {
+            "items": serialise_sequence(speechSequence),
+            "timestamp": time.time(),
+            "cancelled": False,
+        }
+    )
 
 
-def _on_speech_canceled(**kwargs):
+def _on_speech_canceled(**kwargs: Any) -> None:
     global _CANCELLATIONS
     with _LOCK:
         _CANCELLATIONS += 1
-        if _SEQUENCES:
-            _SEQUENCES[-1]["cancelled"] = True
+    _SEQUENCES.mark_last(cancelled=True)
 
 
-def install():
+def install() -> None:
     global _INSTALLED
     if _INSTALLED:
         return
@@ -53,7 +59,7 @@ def install():
     _INSTALLED = True
 
 
-def uninstall():
+def uninstall() -> None:
     global _INSTALLED
     if not _INSTALLED:
         return
@@ -65,47 +71,37 @@ def uninstall():
 
 
 @rpc_method
-def speech_index():
-    with _LOCK:
-        return len(_SEQUENCES)
+def speech_index() -> int:
+    return _SEQUENCES.index()
 
 
 @rpc_method
-def speech_since(index):
-    with _LOCK:
-        return [dict(entry) for entry in _SEQUENCES[index:]]
+def speech_since(index: int) -> list[dict[str, Any]]:
+    return _SEQUENCES.since(index)
 
 
 @rpc_method
-def speech_clear():
+def speech_clear() -> bool:
     global _CANCELLATIONS
     with _LOCK:
-        del _SEQUENCES[:]
+        _SEQUENCES.clear()
         _CANCELLATIONS = 0
     return True
 
 
 @rpc_method
-def speech_cancel_count():
+def speech_cancel_count() -> int:
     with _LOCK:
         return _CANCELLATIONS
 
 
 @rpc_method
-def speech_speak(text):
-    import speech
-
-    from .mainthread import run_on_main_thread
-
+def speech_speak(text: str) -> bool:
     run_on_main_thread(lambda: speech.speak([text]))
     return True
 
 
 @rpc_method
-def speech_cancel():
-    import speech
-
-    from .mainthread import run_on_main_thread
-
+def speech_cancel() -> bool:
     run_on_main_thread(speech.cancelSpeech)
     return True

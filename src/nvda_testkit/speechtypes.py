@@ -11,6 +11,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from .wire import WirePayload
+
 
 @dataclass(frozen=True)
 class SpeechItem:
@@ -21,7 +23,7 @@ class SpeechItem:
     raw: str | None = None
 
     @classmethod
-    def from_payload(cls, payload: dict) -> SpeechItem:
+    def from_payload(cls, payload: WirePayload) -> SpeechItem:
         if payload.get("kind") == "text":
             return cls(kind="text", text=payload.get("text", ""))
         return cls(
@@ -59,7 +61,7 @@ class SpeechSequence:
         return f"<SpeechSequence {self.text!r}{suffix}>"
 
 
-def parse_sequence(payload: dict) -> SpeechSequence:
+def parse_sequence(payload: WirePayload) -> SpeechSequence:
     return SpeechSequence(
         items=tuple(SpeechItem.from_payload(item) for item in payload.get("items") or []),
         timestamp=float(payload.get("timestamp") or 0.0),
@@ -67,5 +69,5 @@ def parse_sequence(payload: dict) -> SpeechSequence:
     )
 
 
-def parse_sequences(payloads: list[dict]) -> list[SpeechSequence]:
+def parse_sequences(payloads: list[WirePayload]) -> list[SpeechSequence]:
     return [parse_sequence(payload) for payload in payloads]

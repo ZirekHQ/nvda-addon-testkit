@@ -12,6 +12,7 @@ package under test cannot make the double lie.
 from __future__ import annotations
 
 import builtins
+import copy
 import hmac
 import json
 import os
@@ -212,16 +213,12 @@ class FakeSpy:
         return True
 
     def rpc_config_snapshot(self):
-        import copy as _copy
-
         with self._lock:
-            return _copy.deepcopy(self._config)
+            return copy.deepcopy(self._config)
 
     def rpc_config_restore(self, snapshot):
-        import copy as _copy
-
         with self._lock:
-            self._config = _copy.deepcopy(snapshot)
+            self._config = copy.deepcopy(snapshot)
         return True
 
     def rpc_log_index(self):
@@ -342,6 +339,8 @@ def _serve() -> int:
             payload = {
                 "port": port,
                 "pid": os.getpid(),
+                "protocolVersion": 1,
+                "token": token,
                 "nvdaVersion": script.get("nvda_version", "2026.1.1"),
                 "apiVersion": script.get("api_version", "2026.1.1"),
                 "apiCompatTo": script.get("api_compat_to", "2026.1.0"),

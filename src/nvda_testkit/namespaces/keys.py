@@ -7,9 +7,9 @@ sleep between a keypress and the assertion about what it caused.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 from ..rpcclient import RpcClient
+from ..wire import WirePayload
 
 
 class KeysNamespace:
@@ -37,6 +37,6 @@ class KeysNamespace:
         self._announce(f'typing "{text}"')
         self._rpc.call("keys_type", text, timeout)
 
-    def sent(self) -> list[dict[str, Any]]:
+    def sent(self) -> list[WirePayload]:
         """Every gesture sent this session. Goes into the replay trace."""
         return list(self._rpc.call("keys_sent"))

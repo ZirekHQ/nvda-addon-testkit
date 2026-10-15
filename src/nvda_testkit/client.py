@@ -4,28 +4,42 @@ from __future__ import annotations
 
 import contextlib
 import time
-from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
+from typing import Any, Protocol
 
 from .actionmark import START, ActionMark
-from .errors import AuthError, ConnectionLost, RpcError, TestkitError
+from .errors import AuthError, ConnectionLost, RpcError, TestkitError, WaitTimeout
+from .handshake import Handshake
 from .namespaces.addons import AddonsNamespace
 from .namespaces.braille import BrailleNamespace
 from .namespaces.config import ConfigNamespace
 from .namespaces.keys import KeysNamespace
 from .namespaces.log import LogNamespace
 from .namespaces.speech import SpeechNamespace
-from .process import NvdaProcess
 from .rpcclient import RpcClient
 from .settings import TestkitSettings
+from .version import NvdaVersion
+
+__all__ = ["NvdaClient", "NvdaVersion", "ProcessHandle"]
 
 
-@dataclass(frozen=True)
-class NvdaVersion:
-    version: str
-    api_version: str | None
-    api_compat_to: str | None
-    channel: str = "unknown"
+class ProcessHandle(Protocol):
+    """What NvdaClient needs from the process that hosts NVDA."""
+
+    @property
+    def token(self) -> str: ...
+
+    @property
+    def handshake(self) -> Handshake | None: ...
+
+    @property
+    def handshake_path(self) -> Path: ...
+
+    def restart(self, timeout: float = ...) -> Handshake: ...
+
+    def adopt_relaunched_handshake(
+        self, *, exclude_pid: int, timeout: float = ...
+    ) -> Handshake: ...
 
 
 _SETTLE_BUDGET = 1.0
@@ -35,7 +49,7 @@ _SETTLE_POLL = 0.05
 class NvdaClient:
     def __init__(
         self,
-        process: NvdaProcess,
+        process: ProcessHandle,
         rpc: RpcClient,
         settings: TestkitSettings | None = None,
     ) -> None:
@@ -60,7 +74,7 @@ class NvdaClient:
         return self._rpc
 
     @property
-    def process(self) -> NvdaProcess:
+    def process(self) -> ProcessHandle:
         return self._process
 
     @property
@@ -110,7 +124,8 @@ class NvdaClient:
         )
 
     def wait_until_idle(self, *, timeout: float = 10.0) -> None:
-        self._rpc.call("wait_until_idle", timeout)
+        if not self._rpc.call("wait_until_idle", timeout):
+            raise WaitTimeout("NVDA to go idle", timeout)
 
     def reset(self) -> None:
         """Return NVDA to the state a test should start from."""
@@ -129,10 +144,15 @@ class NvdaClient:
         if failures:
             raise TestkitError("reset() failed for " + "; ".join(failures))
 
-    def restart_harness(self, *, timeout: float = 60.0) -> None:
-        """Kill and relaunch the NVDA process. Does not exercise NVDA's own
-        core.restart() -- see restart_nvda() for that."""
-        handshake = self._process.restart(timeout=timeout)
+    def _require_eval(self, feature: str) -> None:
+        if not self._settings.allow_eval:
+            raise TestkitError(
+                f"nvda.{feature}() is disabled. It runs arbitrary code inside NVDA, so it is "
+                "opt-in: pass --nvda-allow-eval, or set allow-eval = true under "
+                "[tool.nvda-testkit]."
+            )
+
+    def _reattach(self, handshake: Handshake, label: str) -> None:
         self._rpc.close()
         self._attach(
             RpcClient.from_handshake(
@@ -141,19 +161,24 @@ class NvdaClient:
                 timeout_scale=self._settings.timeout_scale,
             )
         )
-        self.last_action = ActionMark(0, "relaunching NVDA")
+        self.last_action = ActionMark(0, label)
+
+    def restart_harness(self, *, timeout: float = 60.0) -> None:
+        """Kill and relaunch the NVDA process. Does not exercise NVDA's own
+        core.restart() -- see restart_nvda() for that."""
+        try:
+            handshake = self._process.restart(timeout=timeout)
+        except TestkitError:
+            self._rpc.close()
+            raise
+        self._reattach(handshake, "relaunching NVDA")
 
     def restart_nvda(self, *, timeout: float = 60.0) -> None:
         """Trigger NVDA's own core.restart() and wait for its replacement
         process to announce itself. Requires allow_eval, since it is built
         on eval() internally. Use this, not restart_harness(), to verify
         behavior that lives in NVDA's real self-relaunch path."""
-        if not self._settings.allow_eval:
-            raise TestkitError(
-                "nvda.restart_nvda() is disabled. It runs arbitrary code inside NVDA, so it is "
-                "opt-in: pass --nvda-allow-eval, or set allow-eval = true under "
-                "[tool.nvda-testkit]."
-            )
+        self._require_eval("restart_nvda")
         handshake = self._process.handshake
         if handshake is None:
             raise TestkitError("NVDA is not running; nothing to restart.")
@@ -164,32 +189,14 @@ class NvdaClient:
         new_handshake = self._process.adopt_relaunched_handshake(
             exclude_pid=old_pid, timeout=timeout
         )
-        self._rpc.close()
-        self._attach(
-            RpcClient.from_handshake(
-                new_handshake,
-                token=self._process.token,
-                timeout_scale=self._settings.timeout_scale,
-            )
-        )
-        self.last_action = ActionMark(0, "restarting NVDA")
+        self._reattach(new_handshake, "restarting NVDA")
 
     def eval(self, source: str) -> Any:
-        if not self._settings.allow_eval:
-            raise TestkitError(
-                "nvda.eval() is disabled. It runs arbitrary code inside NVDA, so it is "
-                "opt-in: pass --nvda-allow-eval, or set allow-eval = true under "
-                "[tool.nvda-testkit]."
-            )
+        self._require_eval("eval")
         return self._rpc.call("eval_in_nvda", source)
 
     def exec(self, source: str) -> Any:
-        if not self._settings.allow_eval:
-            raise TestkitError(
-                "nvda.exec() is disabled. It runs arbitrary code inside NVDA, so it is "
-                "opt-in: pass --nvda-allow-eval, or set allow-eval = true under "
-                "[tool.nvda-testkit]."
-            )
+        self._require_eval("exec")
         return self._rpc.call("exec_in_nvda", source)
 
     def exec_nowait(self, source: str, *, label: str = "queueing a scenario") -> None:
@@ -199,12 +206,7 @@ class NvdaClient:
         server for the dialog's whole lifetime, so a paired simulate_modal()
         call could never even be dispatched to close it. Records an action mark
         labelled `label`."""
-        if not self._settings.allow_eval:
-            raise TestkitError(
-                "nvda.exec_nowait() is disabled. It runs arbitrary code inside NVDA, so it "
-                "is opt-in: pass --nvda-allow-eval, or set allow-eval = true under "
-                "[tool.nvda-testkit]."
-            )
+        self._require_eval("exec_nowait")
         self.mark_action(label)
         self._rpc.call("exec_in_nvda_nowait", source)
 

@@ -24,6 +24,14 @@ def client(fake_nvda):
     proc.kill()
 
 
+def _ping_fails(client: RpcClient) -> bool:
+    try:
+        client.call("ping")
+    except RpcError:
+        return True
+    return False
+
+
 def test_call_injects_the_token(client):
     assert client.call("ping") == "pong"
 
@@ -52,14 +60,11 @@ def test_an_unknown_method_raises_rpc_error(client):
 
 def test_a_dead_server_raises_rpc_error_not_oserror(client, fake_nvda):
     client.call("quit")
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        try:
-            client.call("ping")
-        except RpcError:
-            return
-        time.sleep(0.05)
-    pytest.fail("calling a dead server should have raised RpcError")
+    client.poll_until(
+        lambda: _ping_fails(client), timeout=10, description="the server to stop answering"
+    )
+    with pytest.raises(RpcError):
+        client.call("ping")
 
 
 def test_poll_until_returns_the_first_truthy_value(client):

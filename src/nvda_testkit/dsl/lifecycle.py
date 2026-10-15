@@ -55,11 +55,20 @@ class Lifecycle:
 
     def undo_all(self) -> None:
         absent = AddonState.NOT_INSTALLED
+        failures: list[Exception] = []
+        removed = False
+        for name in self._installed:
+            try:
+                if self._client.addons.state(name) is not absent:
+                    self._client.addons.remove(name)
+                    removed = True
+            except Exception as error:
+                failures.append(error)
+        self._installed.clear()
         try:
-            present = [n for n in self._installed if self._client.addons.state(n) is not absent]
-            for name in present:
-                self._client.addons.remove(name)
-            if present:
+            if removed:
                 self._client.restart_harness()
-        finally:
-            self._installed.clear()
+        except Exception as error:
+            failures.append(error)
+        if failures:
+            raise failures[0]

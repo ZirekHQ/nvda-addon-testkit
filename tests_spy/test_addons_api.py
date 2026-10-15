@@ -1,11 +1,10 @@
+import addonHandler
 import pytest
+from nvda_testkit_spy import addons_api
 
 
 @pytest.fixture
 def api(event_queue):
-    import addonHandler
-    from nvda_testkit_spy import addons_api
-
     addonHandler.INSTALLED.clear()
     addonHandler.NEXT_INSTALL_OUTCOME = "ok"
     return addons_api
@@ -31,8 +30,6 @@ def test_list_reports_name_version_and_state(api):
 
 
 def test_an_addon_that_finished_installing_reports_enabled(api):
-    import addonHandler
-
     api.addons_install("/tmp/demo.nvda-addon")
     addon = addonHandler.INSTALLED[0]
     addon.isPendingInstall = False
@@ -41,8 +38,6 @@ def test_an_addon_that_finished_installing_reports_enabled(api):
 
 
 def test_a_disabled_addon_reports_disabled(api):
-    import addonHandler
-
     api.addons_install("/tmp/demo.nvda-addon")
     addon = addonHandler.INSTALLED[0]
     addon.isPendingInstall = False
@@ -51,8 +46,6 @@ def test_a_disabled_addon_reports_disabled(api):
 
 
 def test_remove_marks_pending_remove(api):
-    import addonHandler
-
     api.addons_install("/tmp/demo.nvda-addon")
     addonHandler.INSTALLED[0].isPendingInstall = False
     api.addons_remove("demo-addon")
@@ -65,16 +58,12 @@ def test_removing_something_absent_is_an_error_not_a_silent_no_op(api):
 
 
 def test_a_bundle_that_will_not_extract_reports_why(api):
-    import addonHandler
-
     addonHandler.NEXT_INSTALL_OUTCOME = "extract-failure"
     with pytest.raises(RuntimeError, match="could not extract"):
         api.addons_install("/tmp/corrupt.nvda-addon")
 
 
 def test_a_failing_on_install_task_is_not_reported_as_success(api):
-    import addonHandler
-
     addonHandler.NEXT_INSTALL_OUTCOME = "install-task-failure"
     with pytest.raises(RuntimeError, match="onInstall failed"):
         api.addons_install("/tmp/demo.nvda-addon")
@@ -82,8 +71,6 @@ def test_a_failing_on_install_task_is_not_reported_as_success(api):
 
 
 def test_a_failed_install_names_the_underlying_exception(api):
-    import addonHandler
-
     addonHandler.NEXT_INSTALL_OUTCOME = "install-task-failure"
     with pytest.raises(RuntimeError, match="RuntimeError: onInstall exploded"):
         api.addons_install("/tmp/demo.nvda-addon")

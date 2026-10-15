@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass
 
 from ..rpcclient import RpcClient
+from ..wire import WirePayload
 
 _ERROR_LEVELS = frozenset({"ERROR", "CRITICAL"})
 _WARNING_LEVELS = frozenset({"WARNING", "ERROR", "CRITICAL"})
@@ -26,7 +27,7 @@ class LogRecord:
         return f"{self.level}: {self.message}"
 
 
-def _parse(payloads: list[dict]) -> list[LogRecord]:
+def _parse(payloads: list[WirePayload]) -> list[LogRecord]:
     return [
         LogRecord(
             level=str(payload.get("level", "")),
@@ -81,15 +82,16 @@ class LogNamespace:
     ) -> LogRecord:
         start = self.index() if since is None else since
 
-        def find():
+        def find() -> LogRecord | None:
             for record in self.since(start):
                 if re.search(pattern, record.message, flags):
                     return record
             return None
 
-        return self._rpc.poll_until(
+        found: LogRecord = self._rpc.poll_until(
             find,
             timeout=timeout,
             description=f"a log record matching {pattern!r}",
             last_seen=lambda: [record.message for record in self.since(start)],
         )
+        return found

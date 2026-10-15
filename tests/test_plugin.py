@@ -132,8 +132,19 @@ def test_xdist_with_several_workers_is_refused(harness):
         """
     )
     result = harness.runpytest("-n", "2")
-    result.stderr.fnmatch_lines(["*nvda-addon-testkit cannot run in parallel*"])
+    result.stdout.fnmatch_lines(["*nvda-addon-testkit cannot run in parallel*"])
     assert result.ret != 0
+
+
+def test_xdist_with_several_workers_runs_tests_that_do_not_use_nvda(harness):
+    pytest.importorskip("xdist")
+    harness.makepyfile(
+        """
+        def test_pure():
+            assert 1 + 1 == 2
+        """
+    )
+    harness.runpytest("-n", "2").assert_outcomes(passed=1)
 
 
 def test_xdist_with_a_single_worker_is_allowed(harness):

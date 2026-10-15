@@ -12,7 +12,7 @@ import logging
 import sys
 import threading
 import types
-from typing import ClassVar
+from typing import Any, ClassVar
 from unittest.mock import MagicMock
 
 
@@ -20,11 +20,11 @@ class FakeEventQueue:
     """Stands in for queueHandler's event queue plus the main thread draining it."""
 
     def __init__(self) -> None:
-        self.pending: list = []
+        self.pending: list[Any] = []
         self.auto_drain = True
         self._lock = threading.RLock()
 
-    def put(self, func) -> None:
+    def put(self, func: Any) -> None:
         with self._lock:
             self.pending.append(func)
         if self.auto_drain:
@@ -59,33 +59,33 @@ class FakeSection:
     a live section or hands xmlrpc something it cannot marshal.
     """
 
-    def __init__(self, data=None) -> None:
-        self._data: dict = {}
+    def __init__(self, data: dict[str, Any] | None = None) -> None:
+        self._data: dict[str, Any] = {}
         for key, value in (data or {}).items():
             self[key] = value
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         return self._data[key]
 
-    def __setitem__(self, key, value) -> None:
+    def __setitem__(self, key: str, value: Any) -> None:
         self._data[key] = FakeSection(value) if isinstance(value, dict) else value
 
-    def __contains__(self, key) -> bool:
+    def __contains__(self, key: str) -> bool:
         return key in self._data
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         return iter(self._data)
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         return self._data.get(key, default)
 
-    def items(self):
+    def items(self) -> Any:
         return self._data.items()
 
-    def copy(self) -> dict:
+    def copy(self) -> dict[str, Any]:
         return dict(self.items())
 
-    def dict(self) -> dict:
+    def dict(self) -> dict[str, Any]:
         return {
             key: value.dict() if isinstance(value, FakeSection) else value
             for key, value in self._data.items()
@@ -99,22 +99,22 @@ class FakeConfigManager:
     update() or __delitem__.
     """
 
-    def __init__(self, data=None) -> None:
+    def __init__(self, data: dict[str, Any] | None = None) -> None:
         self.rootSection = FakeSection(data)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         return self.rootSection[key]
 
-    def __setitem__(self, key, value) -> None:
+    def __setitem__(self, key: str, value: Any) -> None:
         self.rootSection[key] = value
 
-    def __contains__(self, key) -> bool:
+    def __contains__(self, key: str) -> bool:
         return key in self.rootSection
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         return self.rootSection.get(key, default)
 
-    def dict(self) -> dict:
+    def dict(self) -> dict[str, Any]:
         return self.rootSection.dict()
 
 
@@ -122,16 +122,16 @@ class FakeAction:
     """Stands in for extensionPoints.Action."""
 
     def __init__(self) -> None:
-        self.handlers: list = []
+        self.handlers: list[Any] = []
 
-    def register(self, handler) -> None:
+    def register(self, handler: Any) -> None:
         self.handlers.append(handler)
 
-    def unregister(self, handler) -> None:
+    def unregister(self, handler: Any) -> None:
         if handler in self.handlers:
             self.handlers.remove(handler)
 
-    def notify(self, **kwargs) -> None:
+    def notify(self, **kwargs: Any) -> None:
         for handler in list(self.handlers):
             handler(**kwargs)
 
@@ -139,7 +139,7 @@ class FakeAction:
 class FakeFilter(FakeAction):
     """Stands in for extensionPoints.Filter."""
 
-    def apply(self, value, **kwargs):
+    def apply(self, value: Any, **kwargs: Any) -> Any:
         for handler in list(self.handlers):
             value = handler(value, **kwargs)
         return value
@@ -174,10 +174,10 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     global_plugin_handler = types.ModuleType("globalPluginHandler")
 
     class GlobalPlugin:
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-        def terminate(self):
+        def terminate(self) -> None:
             pass
 
     global_plugin_handler.GlobalPlugin = GlobalPlugin
@@ -218,20 +218,20 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     speech_commands = types.ModuleType("speech.commands")
 
     class _Command:
-        def __repr__(self):
+        def __repr__(self) -> str:
             fields = ", ".join(f"{k}={v!r}" for k, v in sorted(vars(self).items()))
             return f"{type(self).__name__}({fields})"
 
     class IndexCommand(_Command):
-        def __init__(self, index):
+        def __init__(self, index: int) -> None:
             self.index = index
 
     class LangChangeCommand(_Command):
-        def __init__(self, lang):
+        def __init__(self, lang: str) -> None:
             self.lang = lang
 
     class BreakCommand(_Command):
-        def __init__(self, time):
+        def __init__(self, time: int) -> None:
             self.time = time
 
     speech_commands.IndexCommand = IndexCommand
@@ -251,11 +251,11 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     braille_display = types.ModuleType("braille.display")
 
     class DisplayDimensions:
-        def __init__(self, numRows, numCols):
+        def __init__(self, numRows: int, numCols: int) -> None:
             self.numRows = numRows
             self.numCols = numCols
 
-        def __eq__(self, other):
+        def __eq__(self, other: Any) -> bool:
             return (self.numRows, self.numCols) == (other.numRows, other.numCols)
 
     braille_display.DisplayDimensions = DisplayDimensions
@@ -268,18 +268,18 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     keyboard_handler = types.ModuleType("keyboardHandler")
 
     class KeyboardInputGesture:
-        created: ClassVar[list] = []
+        created: ClassVar[list[str]] = []
 
-        def __init__(self, name):
+        def __init__(self, name: str) -> None:
             self.name = name
 
         @classmethod
-        def fromName(cls, name):
+        def fromName(cls, name: str) -> KeyboardInputGesture:
             gesture = cls(name)
             cls.created.append(name)
             return gesture
 
-        def __repr__(self):
+        def __repr__(self) -> str:
             return f"KeyboardInputGesture({self.name!r})"
 
     keyboard_handler.KeyboardInputGesture = KeyboardInputGesture
@@ -291,7 +291,9 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
     addon_handler = types.ModuleType("addonHandler")
 
     class _FakeAddon:
-        def __init__(self, name, version="1.0.0", pending_install=False):
+        def __init__(
+            self, name: str, version: str = "1.0.0", pending_install: bool = False
+        ) -> None:
             self.name = name
             self.version = version
             self.isPendingInstall = pending_install
@@ -299,21 +301,21 @@ def install(event_queue: FakeEventQueue | None = None) -> dict[str, types.Module
             self.isDisabled = False
             self.isRunning = not pending_install
 
-        def requestRemove(self):
+        def requestRemove(self) -> None:
             self.isPendingRemove = True
 
     addon_handler.Addon = _FakeAddon
     addon_handler.INSTALLED = []
 
     class AddonBundle:
-        def __init__(self, path):
+        def __init__(self, path: str) -> None:
             self.path = path
             self.manifest = {"name": "demo-addon", "version": "1.0.0"}
-            self._installExceptions: list = []
+            self._installExceptions: list[Exception] = []
 
     addon_handler.AddonBundle = AddonBundle
 
-    def _install_addon_bundle(bundle):
+    def _install_addon_bundle(bundle: Any) -> Any:
         """Mirrors addonHandler.installAddonBundle: None only when extraction
         fails, and the Addon even when installTasks.onInstall raised."""
         outcome = addon_handler.NEXT_INSTALL_OUTCOME

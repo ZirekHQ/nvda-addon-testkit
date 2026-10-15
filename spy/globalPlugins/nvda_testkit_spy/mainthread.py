@@ -6,7 +6,10 @@ from there is safe; calling into NVDA is not. Anything that mutates NVDA state
 goes through run_on_main_thread, or you get failures that read as flakes.
 """
 
+from __future__ import annotations
+
 import threading
+from typing import Any, Callable
 
 import queueHandler
 from logHandler import log
@@ -16,17 +19,17 @@ DEFAULT_TIMEOUT = 10.0
 _MISSING = object()
 
 
-def run_on_main_thread(fn, timeout=DEFAULT_TIMEOUT):
+def run_on_main_thread(fn: Callable[[], Any], timeout: float = DEFAULT_TIMEOUT) -> Any:
     """Run `fn` on NVDA's main thread and return its value.
 
     Re-raises whatever `fn` raised, on the calling thread.
     """
-    outcome = {"value": _MISSING, "error": None}
+    outcome: dict[str, Any] = {"value": _MISSING, "error": None}
     finished = threading.Event()
     timed_out = threading.Event()
     started = threading.Event()
 
-    def runner():
+    def runner() -> None:
         started.set()
         try:
             outcome["value"] = fn()

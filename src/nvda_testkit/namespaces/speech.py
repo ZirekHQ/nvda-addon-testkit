@@ -54,18 +54,19 @@ class SpeechNamespace:
         """
         start = self.index() if since is None else since
 
-        def find():
+        def find() -> SpeechSequence | None:
             for sequence in self.since(start):
                 if sequence.matches(pattern):
                     return sequence
             return None
 
-        return self._rpc.poll_until(
+        found: SpeechSequence = self._rpc.poll_until(
             find,
             timeout=timeout,
             description=f"speech matching {pattern!r}",
             last_seen=lambda: [sequence.text for sequence in self.since(start)],
         )
+        return found
 
     def wait_for_done(self, *, timeout: float = 10.0) -> None:
         """Wait until NVDA's event queue has drained, i.e. speech has been dispatched."""

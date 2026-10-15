@@ -12,6 +12,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from ..rpcclient import RpcClient
+from ..wire import WirePayload
 
 
 class AddonState(StrEnum):
@@ -30,7 +31,7 @@ class AddonInfo:
     state: AddonState
 
     @classmethod
-    def from_payload(cls, payload: dict) -> AddonInfo:
+    def from_payload(cls, payload: WirePayload) -> AddonInfo:
         return cls(
             name=payload["name"],
             version=payload.get("version", "unknown"),

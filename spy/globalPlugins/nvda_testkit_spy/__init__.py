@@ -6,8 +6,9 @@ Does nothing at all unless NVDA_TESTKIT_TOKEN and NVDA_TESTKIT_OUTDIR are both
 set, so an accidental install in a real NVDA is inert.
 """
 
-import contextlib
-import os
+from __future__ import annotations
+
+from typing import Any, Callable, Optional
 
 import globalPluginHandler
 from logHandler import log
@@ -19,16 +20,24 @@ from . import eval_api as eval_api
 from . import input_api as input_api
 from . import modal_api as modal_api
 from .server import SpyServer
+from .settings import Settings
+
+
+def _best_effort(action: Callable[[], None], failure: str) -> None:
+    """Run one teardown step so a failure never skips the steps after it."""
+    try:
+        action()
+    except Exception:
+        log.exception(failure)
 
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._server = None
+        self._server: Optional[SpyServer] = None
 
-        token = os.environ.get("NVDA_TESTKIT_TOKEN")
-        out_dir = os.environ.get("NVDA_TESTKIT_OUTDIR")
-        if not token or not out_dir:
+        settings = Settings.from_environ()
+        if settings is None:
             log.info("nvda-testkit spy present but idle: no session environment set")
             return
 
@@ -36,35 +45,20 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             log_tap.install()
             speech_tap.install()
             braille_tap.install()
-            self._server = SpyServer(token, out_dir)
+            self._server = SpyServer(settings.token, settings.out_dir)
             self._server.start()
         except Exception:
             log.exception("nvda-testkit spy failed to start")
-            if self._server is not None:
-                with contextlib.suppress(Exception):
-                    self._server.stop()
-            self._server = None
-            with contextlib.suppress(Exception):
-                log_tap.uninstall()
-            with contextlib.suppress(Exception):
-                speech_tap.uninstall()
-            with contextlib.suppress(Exception):
-                braille_tap.uninstall()
+            self._teardown()
 
-    def terminate(self):
-        try:
-            log_tap.uninstall()
-        except Exception:
-            log.exception("nvda-testkit spy failed to remove its log tap")
-        try:
-            speech_tap.uninstall()
-        except Exception:
-            log.exception("nvda-testkit spy failed to remove its speech tap")
-        try:
-            braille_tap.uninstall()
-        except Exception:
-            log.exception("nvda-testkit spy failed to remove its braille tap")
+    def _teardown(self) -> None:
         if self._server is not None:
-            self._server.stop()
-            self._server = None
+            _best_effort(self._server.stop, "nvda-testkit spy failed to stop its server")
+        self._server = None
+        _best_effort(log_tap.uninstall, "nvda-testkit spy failed to remove its log tap")
+        _best_effort(speech_tap.uninstall, "nvda-testkit spy failed to remove its speech tap")
+        _best_effort(braille_tap.uninstall, "nvda-testkit spy failed to remove its braille tap")
+
+    def terminate(self) -> None:
+        self._teardown()
         super().terminate()

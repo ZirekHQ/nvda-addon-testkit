@@ -9,15 +9,18 @@ mutations -- observed as "dictionary changed size during iteration" raised
 from inside NVDA's own ConfigManager.dict().
 """
 
+from __future__ import annotations
+
 import copy
+from typing import Any
+
+import config
 
 from .mainthread import run_on_main_thread
 from .registry import rpc_method
 
 
-def _walk(path):
-    import config
-
+def _walk(path: list[Any]) -> Any:
     node = config.conf
     for key in path:
         try:
@@ -30,18 +33,16 @@ def _walk(path):
 
 
 @rpc_method
-def config_get(path):
+def config_get(path: list[Any]) -> Any:
     return run_on_main_thread(lambda: _plain(_walk(list(path))))
 
 
-def _is_section(node):
+def _is_section(node: Any) -> bool:
     """Section-like: a dict, a ConfigObj Section, or an AggregatedSection."""
     return hasattr(node, "items") and hasattr(node, "__setitem__")
 
 
-def _assign(path, value):
-    import config
-
+def _assign(path: list[Any], value: Any) -> None:
     node = config.conf
     for key in path[:-1]:
         if key not in node or not _is_section(node[key]):
@@ -51,12 +52,12 @@ def _assign(path, value):
 
 
 @rpc_method
-def config_set(path, value):
+def config_set(path: list[Any], value: Any) -> bool:
     run_on_main_thread(lambda: _assign(list(path), value))
     return True
 
 
-def _plain(node):
+def _plain(node: Any) -> Any:
     """Deep-copy NVDA's config objects into ordinary dicts, so they survive the wire."""
     if hasattr(node, "dict"):
         node = node.dict()
@@ -69,20 +70,16 @@ def _plain(node):
     return str(node)
 
 
-def _snapshot():
-    import config
-
+def _snapshot() -> dict[str, Any]:
     return _plain(config.conf)
 
 
 @rpc_method
-def config_snapshot():
+def config_snapshot() -> dict[str, Any]:
     return run_on_main_thread(_snapshot)
 
 
-def _restore(snapshot):
-    import config
-
+def _restore(snapshot: dict[str, Any]) -> None:
     live = config.conf.dict()
     for key, value in copy.deepcopy(snapshot).items():
         config.conf[key] = value
@@ -92,6 +89,6 @@ def _restore(snapshot):
 
 
 @rpc_method
-def config_restore(snapshot):
+def config_restore(snapshot: dict[str, Any]) -> bool:
     run_on_main_thread(lambda: _restore(snapshot))
     return True

@@ -1,10 +1,10 @@
 import pytest
+from logHandler import log
+from nvda_testkit_spy import log_tap
 
 
 @pytest.fixture
 def tap():
-    from nvda_testkit_spy import log_tap
-
     log_tap.install()
     log_tap.log_clear()
     yield log_tap
@@ -12,8 +12,6 @@ def tap():
 
 
 def _emit(level, message):
-    from logHandler import log
-
     getattr(log, level)(message)
 
 
@@ -33,8 +31,6 @@ def test_index_advances_and_since_slices(tap):
 
 
 def test_exception_records_carry_their_traceback(tap):
-    from logHandler import log
-
     try:
         raise ValueError("kaboom")
     except ValueError:

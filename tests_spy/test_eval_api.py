@@ -1,21 +1,20 @@
 import xmlrpc.client
 
+import logHandler
 import pytest
+from nvda_testkit_spy import eval_api, modal_api
+from nvda_testkit_spy.registry import METHODS
 
 
 @pytest.fixture
 def api(event_queue, monkeypatch):
-    from nvda_testkit_spy import eval_api, modal_api
-
     monkeypatch.setattr(modal_api, "_foreground_owner", lambda: (100, 42))
     return eval_api
 
 
-def test_it_is_registered_under_the_name_the_host_calls(event_queue):
-    from nvda_testkit_spy import eval_api  # noqa: F401  -- importing is what registers it
-    from nvda_testkit_spy.registry import METHODS
-
-    assert "eval_in_nvda" in METHODS
+@pytest.mark.parametrize("name", ["eval_in_nvda", "exec_in_nvda", "exec_in_nvda_nowait"])
+def test_it_is_registered_under_the_name_the_host_calls(event_queue, name):
+    assert name in METHODS
 
 
 def test_it_evaluates_an_expression(api):
@@ -46,13 +45,6 @@ def test_containers_are_flattened_into_something_xmlrpc_can_carry(api):
 def test_a_raising_expression_propagates(api):
     with pytest.raises(ZeroDivisionError):
         api.eval_in_nvda("1 / 0")
-
-
-def test_exec_it_is_registered_under_the_name_the_host_calls(event_queue):
-    from nvda_testkit_spy import eval_api  # noqa: F401
-    from nvda_testkit_spy.registry import METHODS
-
-    assert "exec_in_nvda" in METHODS
 
 
 def test_exec_runs_multiple_statements(api):
@@ -86,13 +78,6 @@ def test_exec_a_runtime_error_propagates(api):
         api.exec_in_nvda("__result__ = 1 / 0")
 
 
-def test_nowait_it_is_registered_under_the_name_the_host_calls(event_queue):
-    from nvda_testkit_spy import eval_api  # noqa: F401
-    from nvda_testkit_spy.registry import METHODS
-
-    assert "exec_in_nvda_nowait" in METHODS
-
-
 def test_nowait_returns_true_without_waiting_for_the_result(api):
     assert api.exec_in_nvda_nowait("x = 1") is True
 
@@ -113,8 +98,6 @@ def test_nowait_a_syntax_error_raises_synchronously_not_once_queued(api, event_q
 
 
 def test_nowait_a_runtime_error_is_logged_instead_of_raised(api):
-    import logHandler
-
     logHandler.log.reset_mock()
     api.exec_in_nvda_nowait("1 / 0")
     logHandler.log.error.assert_called_once()
@@ -127,3 +110,9 @@ def test_nowait_records_the_foreground_baseline_before_queueing(api, event_queue
     monkeypatch.setattr(api.queueHandler, "queueFunction", lambda q, fn: order.append("queued"))
     api.exec_in_nvda_nowait("x = 1")
     assert order == ["baseline", "queued"]
+
+
+def test_nowait_a_runtime_error_is_logged_with_its_traceback(api):
+    logHandler.log.reset_mock()
+    api.exec_in_nvda_nowait("raise KeyError('missing')")
+    assert logHandler.log.error.call_args.kwargs["exc_info"] is True

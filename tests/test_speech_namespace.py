@@ -1,3 +1,5 @@
+import threading
+
 import pytest
 
 from nvda_testkit.errors import WaitTimeout
@@ -50,8 +52,6 @@ def test_last_returns_the_most_recent(speech):
 
 def test_wait_for_returns_as_soon_as_the_pattern_appears(speech):
     namespace, rpc = speech
-    import threading
-
     threading.Timer(0.2, lambda: _emit(rpc, "the voice is ready")).start()
     found = namespace.wait_for("voice is ready", timeout=10)
     assert "voice is ready" in found.text

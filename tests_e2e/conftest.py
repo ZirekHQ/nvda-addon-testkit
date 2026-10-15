@@ -21,6 +21,22 @@ RUNNER_ENVIRONMENT_ERRORS = (
     r"UIAHandler|IAccessible|interactive desktop|desktop object",
 )
 
+
+@pytest.fixture(scope="session")
+def runner_environment_errors():
+    return RUNNER_ENVIRONMENT_ERRORS
+
+
+@pytest.fixture(scope="session")
+def confirm_dialog_source():
+    return (
+        "import wx\n"
+        "dlg = wx.MessageDialog(None, 'confirm?', 'confirm?', wx.YES_NO)\n"
+        "dlg.ShowModal()\n"
+        "dlg.Destroy()\n"
+    )
+
+
 _RUNNER_ENVIRONMENT = re.compile("|".join(RUNNER_ENVIRONMENT_ERRORS), re.IGNORECASE)
 
 

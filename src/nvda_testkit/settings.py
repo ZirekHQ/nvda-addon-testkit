@@ -6,10 +6,15 @@ tomllib is stdlib from 3.11, which is the floor -- no external TOML dependency.
 from __future__ import annotations
 
 import math
+import os
 import tomllib
+import warnings
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import cast
+from typing import Any
+
+from .errors import SettingsError
 
 _KEY_MAP = {
     "nvda-channel": "channel",
@@ -19,6 +24,7 @@ _KEY_MAP = {
     "timeout-scale": "timeout_scale",
     "keep-portable": "keep_portable",
     "out-dir": "out_dir",
+    "cache-dir": "cache_dir",
     "timeout": "timeout",
     "fail-on-log-errors": "fail_on_log_errors",
     "ignore-log-errors": "ignore_log_errors",
@@ -35,37 +41,77 @@ class TestkitSettings:
     timeout_scale: float = 1.0
     keep_portable: bool = False
     out_dir: Path = Path("testOutput")
+    cache_dir: Path | None = None
     timeout: float = 10.0
     fail_on_log_errors: bool = False
     ignore_log_errors: tuple[str, ...] = ()
     verbose: bool = False
 
 
-def _duration(field: str, value) -> float:
-    number = float(value)
+_TRUE = frozenset({"true", "1", "yes", "on"})
+_FALSE = frozenset({"false", "0", "no", "off"})
+_TUPLE_FIELDS = frozenset({"modules", "ignore_log_errors"})
+_BOOL_FIELDS = frozenset({"allow_eval", "keep_portable", "fail_on_log_errors", "verbose"})
+_PATH_FIELDS = frozenset({"out_dir", "cache_dir"})
+
+
+def _duration(field: str, value: object) -> float:
+    try:
+        number = float(str(value))
+    except ValueError:
+        raise SettingsError(f"{field} must be a finite positive number, got {value!r}") from None
     if not math.isfinite(number) or number <= 0:
-        raise ValueError(f"{field} must be a finite positive number, got {value!r}")
+        raise SettingsError(f"{field} must be a finite positive number, got {value!r}")
     return number
 
 
-def _coerce(field: str, value):
-    if field in ("modules", "ignore_log_errors"):
-        return (value,) if isinstance(value, str) else tuple(value)
-    if field == "out_dir":
-        return Path(value)
+def _boolean(field: str, value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.strip().lower() in _TRUE | _FALSE:
+        return value.strip().lower() in _TRUE
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    raise SettingsError(f"{field} must be a boolean, got {value!r}")
+
+
+def _strings(field: str, value: object) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, (list, tuple)) and all(isinstance(item, str) for item in value):
+        return tuple(value)
+    raise SettingsError(f"{field} must be a string or a list of strings, got {value!r}")
+
+
+def _coerce(field: str, value: object) -> object:
+    if field in _TUPLE_FIELDS:
+        return _strings(field, value)
+    if field in _PATH_FIELDS:
+        return Path(str(value))
     if field in ("timeout", "timeout_scale"):
         return _duration(field, value)
-    if field in ("allow_eval", "keep_portable", "fail_on_log_errors", "verbose"):
-        return bool(value)
+    if field in _BOOL_FIELDS:
+        return _boolean(field, value)
     return value
+
+
+def _cache_dir_from(environ: Mapping[str, str]) -> Path | None:
+    override = environ.get("NVDA_TESTKIT_CACHE")
+    return Path(override) if override else None
+
+
+def cache_dir_from_environment() -> Path | None:
+    """The launcher cache location named by NVDA_TESTKIT_CACHE, if set."""
+    return _cache_dir_from(os.environ)
 
 
 def load_settings(
     pyproject: Path | None = None,
-    overrides: dict | None = None,
+    overrides: Mapping[str, object] | None = None,
+    environ: Mapping[str, str] | None = None,
 ) -> TestkitSettings:
     path = Path(pyproject) if pyproject is not None else Path("pyproject.toml")
-    values: dict = {}
+    values: dict[str, Any] = {}
 
     if path.is_file():
         with path.open("rb") as handle:
@@ -73,11 +119,21 @@ def load_settings(
         section = document.get("tool", {}).get("nvda-testkit", {})
         for key, value in section.items():
             field = _KEY_MAP.get(key)
-            if field:
-                values[field] = _coerce(field, value)
+            if field is None:
+                warnings.warn(
+                    f"nvda-testkit: unknown key {key!r} under [tool.nvda-testkit] is ignored.",
+                    stacklevel=2,
+                )
+                continue
+            values[field] = _coerce(field, value)
 
     for field, value in (overrides or {}).items():
         if value is not None:
             values[field] = _coerce(field, value)
 
-    return cast(TestkitSettings, replace(TestkitSettings(), **values))
+    if "cache_dir" not in values:
+        from_env = _cache_dir_from(os.environ if environ is None else environ)
+        if from_env is not None:
+            values["cache_dir"] = from_env
+
+    return replace(TestkitSettings(), **values)

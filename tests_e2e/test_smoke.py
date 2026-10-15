@@ -27,7 +27,7 @@ def test_a_gesture_reaches_nvda(nvda):
     # end::keys[]
 
 
-def test_config_round_trips_through_a_real_nvda(nvda):
+def test_config_reports_the_synth_and_a_snapshot(nvda):
     # tag::config[]
     original = nvda.config.get(("speech", "synth"))
     assert isinstance(original, str)

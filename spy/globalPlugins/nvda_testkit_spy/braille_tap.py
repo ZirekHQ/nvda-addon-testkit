@@ -7,25 +7,30 @@ count is pinned too, so expectations do not shift with whatever display NVDA
 believes is attached.
 """
 
+from __future__ import annotations
+
 import threading
 import time
+from typing import Any
 
 from logHandler import log
 
+from .capped_log import CappedLog
 from .registry import rpc_method
 
 _LOCK = threading.RLock()
-_WRITES = []
+_WRITES = CappedLog()
 _CELL_COUNT = 40
 _INSTALLED = False
 
 
-def _on_write_cells(cells=None, rawText=None, currentCellCount=None, **kwargs):  # NOSONAR
-    with _LOCK:
-        _WRITES.append({"text": rawText if rawText is not None else "", "timestamp": time.time()})
+def _on_write_cells(  # NOSONAR
+    cells: Any = None, rawText: str | None = None, currentCellCount: Any = None, **kwargs: Any
+) -> None:
+    _WRITES.append({"text": rawText if rawText is not None else "", "timestamp": time.time()})
 
 
-def _filter_dimensions(dimensions, **kwargs):
+def _filter_dimensions(dimensions: Any, **kwargs: Any) -> Any:
     from braille.display import DisplayDimensions
 
     with _LOCK:
@@ -33,7 +38,7 @@ def _filter_dimensions(dimensions, **kwargs):
     return DisplayDimensions(1, columns)
 
 
-def install():
+def install() -> None:
     global _INSTALLED
     if _INSTALLED:
         return
@@ -51,7 +56,7 @@ def install():
     _INSTALLED = True
 
 
-def uninstall():
+def uninstall() -> None:
     global _INSTALLED
     if not _INSTALLED:
         return
@@ -63,26 +68,23 @@ def uninstall():
 
 
 @rpc_method
-def braille_index():
-    with _LOCK:
-        return len(_WRITES)
+def braille_index() -> int:
+    return _WRITES.index()
 
 
 @rpc_method
-def braille_since(index):
-    with _LOCK:
-        return [dict(entry) for entry in _WRITES[index:]]
+def braille_since(index: int) -> list[dict[str, Any]]:
+    return _WRITES.since(index)
 
 
 @rpc_method
-def braille_clear():
-    with _LOCK:
-        del _WRITES[:]
+def braille_clear() -> bool:
+    _WRITES.clear()
     return True
 
 
 @rpc_method
-def braille_set_cell_count(count):
+def braille_set_cell_count(count: int) -> bool:
     global _CELL_COUNT
     with _LOCK:
         _CELL_COUNT = int(count)
@@ -90,6 +92,6 @@ def braille_set_cell_count(count):
 
 
 @rpc_method
-def braille_cell_count():
+def braille_cell_count() -> int:
     with _LOCK:
         return _CELL_COUNT

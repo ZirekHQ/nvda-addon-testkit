@@ -20,7 +20,10 @@ paired simulate_modal call (see modal_api.py) could never even be
 dispatched to close it.
 """
 
+from __future__ import annotations
+
 import builtins
+from typing import Any
 
 import queueHandler
 from logHandler import log
@@ -32,7 +35,7 @@ from .registry import rpc_method
 _SCALARS = (str, int, float, bool, type(None))
 
 
-def _marshallable(value):
+def _marshallable(value: Any) -> Any:
     """xmlrpc carries scalars and containers of scalars; everything else is a repr."""
     if isinstance(value, _SCALARS):
         return value
@@ -43,34 +46,34 @@ def _marshallable(value):
     return repr(value)
 
 
-def _evaluate(source):
+def _evaluate(source: str) -> Any:
     return eval(source, {"__builtins__": builtins})
 
 
 @rpc_method
-def eval_in_nvda(source, timeout=30.0):
+def eval_in_nvda(source: str, timeout: float = 30.0) -> Any:
     return _marshallable(run_on_main_thread(lambda: _evaluate(source), timeout=timeout))
 
 
-def _execute(source):
+def _execute(source: str) -> Any:
     scope = {"__builtins__": builtins}
     exec(compile(source, "<nvda-testkit>", "exec"), scope)
     return scope.get("__result__")
 
 
 @rpc_method
-def exec_in_nvda(source, timeout=30.0):
+def exec_in_nvda(source: str, timeout: float = 30.0) -> Any:
     return _marshallable(run_on_main_thread(lambda: _execute(source), timeout=timeout))
 
 
 @rpc_method
-def exec_in_nvda_nowait(source):
+def exec_in_nvda_nowait(source: str) -> bool:
     # Compiled here, synchronously, so a SyntaxError still surfaces on this
     # call the same way exec_in_nvda's does -- only *running* the scenario
     # (which may never return, if it opens a modal dialog) gets queued.
     code = compile(source, "<nvda-testkit>", "exec")
 
-    def _run():
+    def _run() -> None:
         try:
             exec(code, {"__builtins__": builtins})
         except Exception:

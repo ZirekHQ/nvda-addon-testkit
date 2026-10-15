@@ -10,13 +10,19 @@ from __future__ import annotations
 import subprocess
 import sys
 import zipfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeAlias
 
 from .errors import ProvisionError, UnsupportedPlatformError
 
-DEFAULT_CONFIG: dict[str, Any] = {
+IniValue: TypeAlias = "str | int | float | bool | list[Any] | tuple[Any, ...]"
+IniTree: TypeAlias = "Mapping[str, IniValue | IniTree]"
+
+_NEEDS_QUOTES = frozenset(",#\"'=[]")
+
+DEFAULT_CONFIG: IniTree = {
     "general": {
         "showWelcomeDialogAtStartup": False,
         "saveConfigurationOnExit": False,
@@ -46,30 +52,54 @@ class PortableNvda:
     addons_dir: Path
 
 
-def _render_section(name: str, values: dict[str, Any], depth: int) -> list[str]:
+def _render_scalar(value: object) -> str:
+    if isinstance(value, bool):
+        return "True" if value else "False"
+    text = str(value)
+    if text and text == text.strip() and not _NEEDS_QUOTES.intersection(text):
+        return text
+    if '"' not in text:
+        return f'"{text}"'
+    if "'" not in text:
+        return f"'{text}'"
+    raise ProvisionError(f"Cannot render {text!r} as an nvda.ini value: it has both quote kinds.")
+
+
+def _render_value(value: object) -> str:
+    if isinstance(value, (list, tuple)):
+        if len(value) == 1:
+            return _render_scalar(value[0]) + ","
+        return ", ".join(_render_scalar(item) for item in value) if value else ","
+    return _render_scalar(value)
+
+
+def _render_section(name: str, values: IniTree, depth: int) -> list[str]:
     brackets = "[" * depth
     closing = "]" * depth
     lines = [f"{brackets}{name}{closing}"]
     nested: list[str] = []
     for key, value in values.items():
-        if isinstance(value, dict):
+        if isinstance(value, Mapping):
             nested.extend(_render_section(key, value, depth + 1))
         else:
-            lines.append(f"{key} = {value}")
+            lines.append(f"{key} = {_render_value(value)}")
     return lines + nested
 
 
-def _merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
-    merged = {key: dict(value) if isinstance(value, dict) else value for key, value in base.items()}
+def _merge(base: IniTree, overrides: IniTree) -> IniTree:
+    merged: dict[str, IniValue | IniTree] = {
+        key: dict(value) if isinstance(value, Mapping) else value for key, value in base.items()
+    }
     for key, value in overrides.items():
-        if isinstance(value, dict) and isinstance(merged.get(key), dict):
-            merged[key] = _merge(merged[key], value)
+        current = merged.get(key)
+        if isinstance(value, Mapping) and isinstance(current, Mapping):
+            merged[key] = _merge(current, value)
         else:
             merged[key] = value
     return merged
 
 
-def render_nvda_ini(overrides: dict[str, Any] | None = None) -> str:
+def render_nvda_ini(overrides: IniTree | None = None) -> str:
     """Render an nvda.ini in ConfigObj's format.
 
     schemaVersion is deliberately omitted: NVDA fills in its own defaults for a
@@ -79,8 +109,8 @@ def render_nvda_ini(overrides: dict[str, Any] | None = None) -> str:
     config = _merge(DEFAULT_CONFIG, overrides or {})
     lines: list[str] = []
     for name, values in config.items():
-        if not isinstance(values, dict):
-            lines.append(f"{name} = {values}")
+        if not isinstance(values, Mapping):
+            lines.append(f"{name} = {_render_value(values)}")
             continue
         lines.extend(_render_section(name, values, depth=1))
     return "\n".join(lines) + "\n"
@@ -106,7 +136,7 @@ def extract_addon(bundle: Path, dest_dir: Path) -> None:
         archive.extractall(dest_dir)
 
 
-def seed_user_config(root: Path, overrides: dict[str, Any] | None = None) -> Path:
+def seed_user_config(root: Path, overrides: IniTree | None = None) -> Path:
     root = Path(root)
     user_config = root / "userConfig"
     (user_config / "addons").mkdir(parents=True, exist_ok=True)
