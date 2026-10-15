@@ -14,6 +14,69 @@ addon-bundle = "dist/my-addon-*.nvda-addon"
 nvda-channel = "stable"
 ----
 
+Python 3.11 through 3.14 is supported. Every key has a matching pytest flag where noted; flags win
+over `pyproject.toml`.
+
+[cols="2,2,1,3"]
+|===
+|`[tool.nvda-testkit]` key |pytest flag |Default |Meaning
+
+|`nvda-channel`
+|`--nvda-channel`, `--nvda-version`
+|`stable`
+|`stable`, `beta`, `alpha`, or a pinned version
+
+|`addon-bundle`
+|
+|none
+|glob for the built `.nvda-addon`
+
+|`modules`
+|
+|`[]`
+|accepted (string or list) but not read by the kit yet
+
+|`allow-eval`
+|`--nvda-allow-eval`
+|`false`
+|enable `nvda.eval()` and `nvda.exec()`
+
+|`timeout`
+|
+|`10.0`
+|default wait timeout in seconds
+
+|`timeout-scale`
+|`--nvda-timeout-scale`
+|`1.0`
+|multiplier applied to every timeout
+
+|`keep-portable`
+|`--nvda-keep-portable`
+|`false`
+|keep the portable NVDA copy after teardown
+
+|`out-dir`
+|`--nvda-out-dir`
+|`testOutput`
+|where logs and artifacts are written
+
+|`fail-on-log-errors`
+|
+|`false`
+|DSL fails when NVDA logs errors
+
+|`ignore-log-errors`
+|
+|`[]`
+|regexes of log errors to ignore
+
+|`verbose`
+|`--nvda-verbose`
+|`false`
+|do not truncate lists in DSL failure messages
+|===
+
 == Run in GitHub Actions
 
 [source,yaml]
@@ -22,13 +85,16 @@ jobs:
   e2e:
     runs-on: windows-2025
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: zirekhq/nvda-addon-testkit@v1
         with:
           nvda-channel: stable
       - run: scons dist
       - run: pytest tests_e2e/ -v
 ----
+
+Action inputs: `nvda-channel` (default `stable`), `python-version` (default `3.13`), and
+`testkit-version` (a pip version specifier for `nvda-addon-testkit`; empty installs the latest).
 
 The action requires a Windows runner — pick whichever one matches what your users run. This
 repository's own e2e test suite runs on both `windows-2025` and `windows-2022` (the latter for

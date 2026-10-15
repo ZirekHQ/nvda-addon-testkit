@@ -4,6 +4,8 @@
 
 End-to-end testing for NVDA add-ons, against a real NVDA, in CI.
 
+Documentation: [docs/](docs/modules/ROOT/pages/index.adoc). Troubleshooting: [docs/modules/ROOT/pages/troubleshooting.adoc](docs/modules/ROOT/pages/troubleshooting.adoc). Security: [.github/SECURITY.md](.github/SECURITY.md).
+
 Your add-on's logic can be unit-tested with stubs. What cannot be stubbed is
 whether it installs, registers, and behaves inside NVDA itself. This kit
 provisions a disposable portable NVDA, installs your add-on into it, and lets
@@ -47,7 +49,7 @@ jobs:
   e2e:
     runs-on: windows-2025
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: zirekhq/nvda-addon-testkit@v1
         with:
           nvda-channel: stable
@@ -105,7 +107,7 @@ with more than one worker is refused rather than silently producing nonsense.
 
 ## Developing the kit itself
 
-The host side is fully testable on Linux against a scriptable double:
+See [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) for the full workflow. The host side is fully testable on Linux against a scriptable double:
 
 ```bash
 pip install -e ".[dev]"

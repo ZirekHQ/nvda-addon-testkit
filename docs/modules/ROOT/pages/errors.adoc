@@ -1,0 +1,49 @@
+= Errors
+
+Every error the kit raises descends from `TestkitError` (`nvda_testkit.errors`).
+
+[cols="2,3"]
+|===
+|Error |Raised when
+
+|`ProvisionError`
+|an NVDA could not be obtained or prepared, or no add-on bundle matched `addon-bundle`
+
+|`LauncherResolutionError`
+|the launcher for the requested channel could not be determined (subclass of `ProvisionError`)
+
+|`HashMismatchError`
+|a downloaded launcher did not match its published SHA-1; the file is deleted and never run
+
+|`SettingsError`
+|a configuration value is invalid (also a `ValueError`)
+
+|`UnsupportedPlatformError`
+|the operation needs a real Windows host
+
+|`NvdaStartupError`
+|NVDA failed to start or died before it was usable
+
+|`HandshakeTimeout`
+|NVDA started but the spy add-on never announced itself (subclass of `NvdaStartupError`)
+
+|`ProtocolMismatchError`
+|the spy speaks a different wire protocol version than this client (subclass of `NvdaStartupError`)
+
+|`RpcError`
+|a call into the spy add-on failed
+
+|`AuthError`
+|the spy rejected the session token, usually a stale NVDA from a previous run (subclass of `RpcError`)
+
+|`ConnectionLost`
+|the transport dropped before a response arrived (subclass of `RpcError`)
+
+|`ScenarioSyntaxError`
+|`nvda.eval()` or `nvda.exec()` received source that does not compile (subclass of `RpcError`)
+
+|`WaitTimeout`
+|a `wait_for` poll expired; carries `description`, `timeout`, and `last_seen`
+|===
+
+See xref:troubleshooting.adoc[] for causes and fixes.

@@ -114,6 +114,11 @@ jobs:
             --json headRefOid,headRefName \
             --jq '"head_sha=\(.headRefOid)\nhead_ref=\(.headRefName)"' \
             >> "$GITHUB_OUTPUT"
+          # head_ref is fork-controlled and lands in scanner args below.
+          if ! printf '%s' "$(grep '^head_ref=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)" | grep -qE '^[A-Za-z0-9._/-]+$'; then
+            echo "::error::PR head branch name has characters outside [A-Za-z0-9._/-]" >&2
+            exit 1
+          fi
 
       - name: Find the matching coverage run
         id: run
@@ -172,7 +177,7 @@ jobs:
             -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.projectKey=ZirekHQ_nvda-addon-testkit
             -Dsonar.organization=zirekhq
-            -Dsonar.sources=src/nvda_testkit,tools
+            -Dsonar.sources=src/nvda_testkit,spy,tools
             -Dsonar.tests=tests,tests_spy,tests_e2e
             -Dsonar.exclusions=src/nvda_testkit/_spy/**,tests/fixtures/**
             -Dsonar.python.version=3.13

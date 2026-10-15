@@ -15,14 +15,14 @@ SPOKEN_PHRASE = "testkit demo says hello"
 
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         postNvdaStartup.register(self._logStartup)
 
-    def _logStartup(self):
+    def _logStartup(self) -> None:
         log.info(STARTUP_MESSAGE)
 
-    def script_sayHello(self, gesture):
+    def script_sayHello(self, gesture: object) -> None:
         ui.message(SPOKEN_PHRASE)
 
     # Read by NVDA's ScriptableObject via mangled-name getattr, not a direct reference.

@@ -24,12 +24,18 @@ on:
 
 permissions: {}
 
+# Two overlapping releases race on tag creation and the force-moved major tag.
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
 jobs:
   compute-version:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
+      actions: read # needed to read CI's conclusion for the resolved commit
     outputs:
       version: ${{ steps.next.outputs.version }}
       sha: ${{ steps.resolve-sha.outputs.sha }}
@@ -46,6 +52,19 @@ jobs:
       - name: Resolve commit SHA
         id: resolve-sha
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Require green CI on the commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.resolve-sha.outputs.sha }}
+        run: |
+          set -euo pipefail
+          conclusion="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/CI.yaml/runs?head_sha=${SHA}&event=push&per_page=1" \
+            --jq '.workflow_runs[0].conclusion // "none"')"
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::CI on ${SHA} is '${conclusion}', not 'success' -- refusing to release" >&2
+            exit 1
+          fi
 
       - name: Compute next version
         id: next

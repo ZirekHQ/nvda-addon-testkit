@@ -12,4 +12,7 @@ include::example$tests_e2e/test_smoke.py[tag=keys,indent=4]
 `sent()` returns every gesture NVDA has processed this session, in order — useful for asserting
 that a gesture was actually delivered even when it produces no speech or log line of its own.
 
-`type_text` and `press_all` cover typing a string and chording multiple gestures.
+`press(gesture, *, timeout=10.0)` returns once the gesture has run on NVDA's main thread. It
+does not wait for whatever NVDA does next, so wait on speech or state
+(`nvda.speech.wait_for`, `wait_for`) before asserting the effect. `press_all(*gestures, timeout=10.0)` sends gestures one after another, and
+`type_text(text, *, timeout=30.0)` types a string.

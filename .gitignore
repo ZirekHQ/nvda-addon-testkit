@@ -12,3 +12,8 @@ examples/demo-addon.nvda-addon
 .ruff_cache/
 .idea/
 /.serena/
+.coverage
+.coverage.*
+coverage.xml
+.uv-cache/
+.nvda-launcher-cache/

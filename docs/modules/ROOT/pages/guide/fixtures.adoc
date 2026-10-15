@@ -12,6 +12,12 @@
 
 |`addon_under_test`
 |that bundle, installed and enabled, NVDA restarted
+
+|`nvda_settings`
+|the session's resolved `TestkitSettings` (see xref:installation.adoc[])
+
+|`nvda_session`
+|the session-scoped `NvdaClient` behind `nvda`; see xref:client.adoc[]
 |===
 
 `addon_under_test` is session-scoped: every test that asks for it shares the same installed
@@ -29,6 +35,11 @@ include::example$tests_e2e/test_demo_addon.py[tag=fixtures,indent=4]
 Reach for the raw `nvda.addons` namespace instead of `addon_under_test` when a test needs to
 drive install/remove itself — for example, to prove the two-phase install contract. Mark it
 `@pytest.mark.fresh_nvda` so it gets its own NVDA process rather than the shared session one:
+
+`built_demo_addon` and `assert_no_unexpected_errors` are fixtures defined in this repository's
+`tests_e2e/conftest.py`, not shipped by the plugin. Define your own equivalents (a fixture that
+builds your bundle, and one that calls `nvda.log.assert_no_errors()` after filtering the
+runner-environment errors your CI host produces), or drop them.
 
 [source,python]
 ----

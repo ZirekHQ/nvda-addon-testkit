@@ -51,6 +51,11 @@ include::example$tests_e2e/test_demo_addon.py[tag=fixtures,indent=4]
 A test that owns the install lifecycle itself asks for `nvda.addons` directly instead — see
 xref:guide/addons.adoc[] for what each state means:
 
+`built_demo_addon` and `assert_no_unexpected_errors` are fixtures defined in this repository's
+`tests_e2e/conftest.py`, not shipped by the plugin. Define your own equivalents (a fixture that
+builds your bundle, and one that calls `nvda.log.assert_no_errors()` after filtering the
+runner-environment errors your CI host produces), or drop them.
+
 [source,python]
 ----
 @pytest.mark.fresh_nvda
