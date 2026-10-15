@@ -21,12 +21,19 @@ _RECORDS = CappedLog()
 _HANDLER: logging.Handler | None = None
 
 
+def _message_of(handler: logging.Handler, record: logging.LogRecord) -> str:
+    try:
+        return handler.format(record)
+    except Exception:
+        try:
+            return str(record.msg)
+        except Exception:
+            return "<unformattable log message>"
+
+
 class _CapturingHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
-        try:
-            message = self.format(record)
-        except (TypeError, ValueError, KeyError, IndexError, AttributeError):
-            message = str(record.msg)
+        message = _message_of(self, record)
         _RECORDS.append(
             {
                 "level": record.levelname,

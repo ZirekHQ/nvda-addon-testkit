@@ -17,10 +17,11 @@ from typing import Any, TypeAlias
 
 from .errors import ProvisionError, UnsupportedPlatformError
 
-IniValue: TypeAlias = "str | int | float | bool | list[Any] | tuple[Any, ...]"
+IniValue: TypeAlias = str | int | float | bool | list[Any] | tuple[Any, ...]
 IniTree: TypeAlias = "Mapping[str, IniValue | IniTree]"
 
 _NEEDS_QUOTES = frozenset(",#\"'=[]")
+_TRIPLE_QUOTES = ("'" * 3, '"' * 3)
 
 DEFAULT_CONFIG: IniTree = {
     "general": {
@@ -56,13 +57,23 @@ def _render_scalar(value: object) -> str:
     if isinstance(value, bool):
         return "True" if value else "False"
     text = str(value)
-    if text and text == text.strip() and not _NEEDS_QUOTES.intersection(text):
+    multiline = "\n" in text or "\r" in text
+    if text and not multiline and text == text.strip() and not _NEEDS_QUOTES.intersection(text):
         return text
-    if '"' not in text:
+    if not multiline and '"' not in text:
         return f'"{text}"'
-    if "'" not in text:
+    if not multiline and "'" not in text:
         return f"'{text}'"
-    raise ProvisionError(f"Cannot render {text!r} as an nvda.ini value: it has both quote kinds.")
+    for quote in _TRIPLE_QUOTES:
+        if quote not in text and not text.endswith(quote[0]):
+            return f"{quote}{text}{quote}"
+    raise ProvisionError(f"Cannot render {text!r} as an nvda.ini value: no safe quoting exists.")
+
+
+def _render_name(name: str) -> str:
+    if "\n" in name or "\r" in name:
+        raise ProvisionError(f"Cannot render {name!r} as an nvda.ini key: it has a newline.")
+    return _render_scalar(name)
 
 
 def _render_value(value: object) -> str:
@@ -76,13 +87,13 @@ def _render_value(value: object) -> str:
 def _render_section(name: str, values: IniTree, depth: int) -> list[str]:
     brackets = "[" * depth
     closing = "]" * depth
-    lines = [f"{brackets}{name}{closing}"]
+    lines = [f"{brackets}{_render_name(name)}{closing}"]
     nested: list[str] = []
     for key, value in values.items():
         if isinstance(value, Mapping):
             nested.extend(_render_section(key, value, depth + 1))
         else:
-            lines.append(f"{key} = {_render_value(value)}")
+            lines.append(f"{_render_name(key)} = {_render_value(value)}")
     return lines + nested
 
 

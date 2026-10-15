@@ -72,3 +72,58 @@ def test_ini_quotes_special_strings_and_renders_lists():
     assert 'a = "one, two"' in ini
     assert "b = p, q" in ini
     assert "c = True" in ini
+
+
+def test_rpc_quit_goes_through_the_header_authenticated_client(monkeypatch):
+    import types
+    from pathlib import Path
+
+    from nvda_testkit import process as process_module
+
+    sent = []
+
+    class _Client:
+        @classmethod
+        def from_handshake(cls, handshake, *, token):
+            sent.append(("from_handshake", handshake.token, token))
+            return cls()
+
+        def call(self, method):
+            sent.append(("call", method))
+
+        def close(self):
+            sent.append(("close",))
+
+    monkeypatch.setattr(process_module, "RpcClient", _Client)
+    proc = process_module.NvdaProcess(["nvda.exe"], Path("out"), token="t", quit_via="rpc")
+    proc._handshake = types.SimpleNamespace(port=1, token="header-token")
+    proc._request_quit()
+    assert sent == [("from_handshake", "header-token", "t"), ("call", "quit"), ("close",)]
+
+
+def test_multiline_ini_values_use_triple_quotes():
+    text = render_nvda_ini({"general": {"note": "one\ntwo"}})
+    assert "note = '''one\ntwo'''" in text
+
+
+def test_ini_keys_with_special_characters_are_quoted():
+    text = render_nvda_ini({"general": {"a=b": "x"}})
+    assert '"a=b" = x' in text
+
+
+def test_a_non_path_value_for_a_path_setting_is_rejected(tmp_path):
+    path = tmp_path / "pyproject.toml"
+    path.write_text("[tool.nvda-testkit]\ncache-dir = false\n")
+    with pytest.raises(SettingsError):
+        load_settings(path)
+
+
+def test_launcher_downloads_refuse_redirects_off_https():
+    import urllib.request
+
+    from nvda_testkit.resolve import _HttpsOnlyRedirects
+
+    handler = _HttpsOnlyRedirects()
+    request = urllib.request.Request("https://download.nvaccess.org/x")
+    with pytest.raises(LauncherResolutionError):
+        handler.redirect_request(request, None, 302, "Found", {}, "ftp://example.org/x.exe")

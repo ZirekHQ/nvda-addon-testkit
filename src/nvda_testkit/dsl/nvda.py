@@ -192,7 +192,6 @@ class Nvda:
         return ActionMark(0, "relaunching NVDA")
 
     @contextmanager
-    @_guarded
     def expecting_speech(
         self,
         text: str | None = None,
@@ -201,6 +200,7 @@ class Nvda:
         within: float | None = None,
     ) -> Iterator[None]:
         __tracebackhide__ = True
+        self._dialogs.require_none_open()
         matcher = build_matcher(text, matching)
         entry = self._client.mark_action("starting the block")
         pid = self._pid()

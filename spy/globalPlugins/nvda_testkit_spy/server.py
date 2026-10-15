@@ -133,10 +133,9 @@ class SpyServer:
             os.makedirs(self._out_dir)
         final = self._handshake_path()
         temporary = final + ".part"
-        with open(temporary, "w", encoding="utf-8") as handle:
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             json.dump(payload, handle)
-        with contextlib.suppress(OSError):
-            os.chmod(temporary, 0o600)
         os.replace(temporary, final)
 
     def _remove_handshake(self) -> None:

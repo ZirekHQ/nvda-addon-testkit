@@ -18,13 +18,13 @@ import signal
 import subprocess
 import sys
 import time
-import xmlrpc.client
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from .errors import HandshakeTimeout, NvdaStartupError, ProtocolMismatchError
 from .handshake import Handshake
 from .portable import PortableNvda
+from .rpcclient import RpcClient
 
 HANDSHAKE_FILENAME = "testkit-handshake.json"
 
@@ -266,11 +266,10 @@ class NvdaProcess:
         if self._quit_via == "rpc":
             if self._handshake is None:
                 return
-            proxy = xmlrpc.client.ServerProxy(
-                f"http://127.0.0.1:{self._handshake.port}", allow_none=True
-            )
+            client = RpcClient.from_handshake(self._handshake, token=self.token)
             with contextlib.suppress(Exception):
-                proxy.quit(self.token)
+                client.call("quit")
+            client.close()
             return
         with contextlib.suppress(OSError, subprocess.TimeoutExpired):
             subprocess.run(

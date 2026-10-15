@@ -18,6 +18,14 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, TypeAlias
 
+__all__ = [
+    "PROTOCOL_VERSION",
+    "TOKEN_HEADER",
+    "ConfigPath",
+    "ConfigSnapshot",
+    "WirePayload",
+]
+
 PROTOCOL_VERSION = 1
 TOKEN_HEADER = "X-Testkit-Token"
 

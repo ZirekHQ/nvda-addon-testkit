@@ -87,7 +87,9 @@ def _coerce(field: str, value: object) -> object:
     if field in _TUPLE_FIELDS:
         return _strings(field, value)
     if field in _PATH_FIELDS:
-        return Path(str(value))
+        if not isinstance(value, (str, os.PathLike)):
+            raise SettingsError(f"{field} must be a path string, got {value!r}")
+        return Path(value)
     if field in ("timeout", "timeout_scale"):
         return _duration(field, value)
     if field in _BOOL_FIELDS:

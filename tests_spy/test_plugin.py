@@ -2,10 +2,10 @@ import threading
 
 import logHandler
 import nvda_testkit_spy
+import nvda_testkit_spy.braille_tap as braille_tap_module
+import nvda_testkit_spy.server as server_module
+import nvda_testkit_spy.speech_tap as speech_tap_module
 import pytest
-from nvda_testkit_spy import braille_tap as braille_tap_module
-from nvda_testkit_spy import server as server_module
-from nvda_testkit_spy import speech_tap as speech_tap_module
 
 
 @pytest.fixture
@@ -148,12 +148,10 @@ def test_terminate_removes_the_other_tap_even_if_one_uninstall_raises(
 
 
 def test_best_effort_logs_the_failure_with_traceback_and_continues():
-    import nvda_testkit_spy as plugin_module
-
     logHandler.log.reset_mock()
 
     def explode():
         raise OSError("disk gone")
 
-    plugin_module._best_effort(explode, "teardown step failed")
+    nvda_testkit_spy._best_effort(explode, "teardown step failed")
     logHandler.log.exception.assert_called_once_with("teardown step failed")
