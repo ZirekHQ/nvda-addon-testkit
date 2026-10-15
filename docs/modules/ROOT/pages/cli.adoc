@@ -1,0 +1,30 @@
+= Command line
+
+`nvda-testkit` has two subcommands. `nvda-testkit --version` prints the installed version.
+
+== provision
+
+[source,bash]
+----
+nvda-testkit provision --channel stable --portable-path ./nvda
+----
+
+Resolves a launcher for `--channel` (`stable`, `beta`, `alpha`, or a pinned version; default
+`stable`), downloads it into the launcher cache, and prints its channel, version, URL, and SHA-1.
+`--portable-path <dir>` also unpacks a portable copy there.
+
+== doctor
+
+[source,bash]
+----
+nvda-testkit doctor [--full]
+----
+
+Checks the platform, the spy add-on bundle, the launcher cache, and that every channel resolves.
+Exits non-zero when anything fails. `--full` additionally downloads the stable launcher and
+creates a portable copy (Windows only).
+
+== Launcher cache
+
+Launchers live in `~/.cache/nvda-testkit`. Set `NVDA_TESTKIT_CACHE` to relocate the directory,
+for example to a path a CI cache step restores.

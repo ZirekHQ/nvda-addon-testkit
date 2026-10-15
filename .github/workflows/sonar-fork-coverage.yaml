@@ -26,6 +26,10 @@ concurrency:
   group: sonar-fork-coverage-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+env:
+  UV_CACHE_DIR: .uv-cache
+  UV_LINK_MODE: copy
+
 jobs:
   # Mirrors sonar.yaml's windows_coverage job: windows_only-marked tests only
   # run on Windows, so without this leg they'd land in the fork's report as
@@ -47,8 +51,14 @@ jobs:
         with:
           python-version: "3.14"
 
-      - run: 'pip install --only-binary :all: -e ".[dev]"'
-      - run: python tools/build_spy.py
+      - run: "pip install --only-binary :all: uv==0.13.0"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .uv-cache
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-
+      - run: uv sync --locked --extra dev
+      - run: uv run --no-sync python tools/build_spy.py
 
       - name: Run tests with coverage
         env:
@@ -58,7 +68,7 @@ jobs:
         # loader imports nvda_testkit's modules before pytest-cov's --cov
         # flag would start tracing, permanently miscounting every top-level
         # def/class line in them as uncovered. Mirrors sonar.yaml.
-        run: coverage run -m pytest -v
+        run: uv run --no-sync coverage run -m pytest -v
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -92,11 +102,17 @@ jobs:
         with:
           python-version: "3.14"
 
-      - run: 'pip install --only-binary :all: -e ".[dev]"'
-      - run: python tools/build_spy.py
+      - run: "pip install --only-binary :all: uv==0.13.0"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .uv-cache
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-
+      - run: uv sync --locked --extra dev
+      - run: uv run --no-sync python tools/build_spy.py
 
       - name: Run tests with coverage
-        run: coverage run -m pytest -v
+        run: uv run --no-sync coverage run -m pytest -v
 
       # After the run above, never before: `coverage run` erases any
       # .coverage.* data files already sitting in the workspace.
@@ -107,8 +123,8 @@ jobs:
 
       - name: Merge into one coverage report
         run: |
-          python -m coverage combine --append
-          python -m coverage xml
+          uv run --no-sync python -m coverage combine --append
+          uv run --no-sync python -m coverage xml
 
       - name: Archive workspace for the manual scan workflow
         run: tar -czf "$RUNNER_TEMP/workspace.tar.gz" -C "$GITHUB_WORKSPACE" .

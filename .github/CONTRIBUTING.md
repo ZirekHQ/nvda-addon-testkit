@@ -33,7 +33,7 @@ nvda-testkit doctor          # check this machine
 | `tests_spy/` | `spy/`, the in-NVDA agent, against stubbed NVDA modules (`tests_spy/nvda_stubs.py`) | Linux + Windows |
 | `tests_e2e/` | both halves together, against a real provisioned NVDA | Windows only |
 
-`tests_e2e/` tests run serially — only one NVDA can own a desktop session, so `pytest-xdist` with more than one worker refuses to start rather than silently corrupting results.
+`tests_e2e/` tests run serially — only one NVDA can own a desktop session, so a test that drives NVDA under `pytest-xdist` with more than one worker fails with a provisioning error rather than silently corrupting results.
 
 ## Linting
 

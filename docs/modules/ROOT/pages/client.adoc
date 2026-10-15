@@ -1,0 +1,37 @@
+= The client
+
+The `nvda` fixture wraps the session's `NvdaClient` in the xref:guide/dsl.adoc[DSL]. Request
+`nvda_session` to use the client directly. Both expose the same namespaces: `speech`, `braille`,
+`keys`, `config`, `log`, and `addons`.
+
+[cols="2,3"]
+|===
+|Member |Behaviour
+
+|`version`
+|`NvdaVersion` with `version`, `api_version`, `api_compat_to`, and `channel`
+
+|`wait_until_idle(*, timeout=10.0)`
+|blocks until NVDA's event queue drains
+
+|`reset()`
+|clears speech, braille, and log, and restores the baseline configuration
+
+|`restart_harness(*, timeout=60.0)`
+|kills and relaunches the NVDA process; does not exercise NVDA's own restart
+
+|`restart_nvda(*, timeout=60.0)`
+|triggers NVDA's own `core.restart()` and reattaches; requires `allow-eval`
+
+|`eval(source)`, `exec(source)`
+|run code inside NVDA; require `allow-eval`
+
+|`exec_nowait(source, *, label=...)`
+|queues code on NVDA's main thread without waiting; use it for scenarios that open a modal dialog
+
+|`simulate_modal(gesture="enter", *, timeout=10.0)`
+|closes a real modal dialog opened by `exec_nowait()`; returns `False` if none appeared
+|===
+
+Use `restart_harness()` for a clean process and `restart_nvda()` to verify behaviour that lives in
+NVDA's real self-relaunch path. See xref:guide/modal-dialogs.adoc[] for the modal workflow.
