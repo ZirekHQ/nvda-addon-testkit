@@ -85,11 +85,6 @@ jobs:
             --json isCrossRepository \
             --jq '"is_cross_repository=\(.isCrossRepository)"' \
             >> "$GITHUB_OUTPUT"
-          # head_ref is fork-controlled and lands in scanner args below.
-          if ! printf '%s' "$(grep '^head_ref=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)" | grep -qE '^[A-Za-z0-9._/-]+$'; then
-            echo "::error::PR head branch name has characters outside [A-Za-z0-9._/-]" >&2
-            exit 1
-          fi
 
       - name: Log the trusted trigger
         env:

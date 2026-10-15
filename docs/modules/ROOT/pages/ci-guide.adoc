@@ -50,7 +50,7 @@ e2e:
     - uses: actions/checkout@v7
     - uses: actions/setup-python@v7
       with:
-        python-version: "3.13" # 3.11 or newer
+        python-version: "3.13" # 3.11–3.14
     - run: pip install -e ".[dev]"
     - name: Cache NVDA launchers
       uses: actions/cache@v6

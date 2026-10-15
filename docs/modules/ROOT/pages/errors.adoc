@@ -15,6 +15,9 @@ Every error the kit raises descends from `TestkitError` (`nvda_testkit.errors`).
 |`HashMismatchError`
 |a downloaded launcher did not match its published SHA-1; the file is deleted and never run
 
+|`SettingsError`
+|a configuration value is invalid (also a `ValueError`)
+
 |`UnsupportedPlatformError`
 |the operation needs a real Windows host
 
@@ -23,6 +26,9 @@ Every error the kit raises descends from `TestkitError` (`nvda_testkit.errors`).
 
 |`HandshakeTimeout`
 |NVDA started but the spy add-on never announced itself (subclass of `NvdaStartupError`)
+
+|`ProtocolMismatchError`
+|the spy speaks a different wire protocol version than this client (subclass of `NvdaStartupError`)
 
 |`RpcError`
 |a call into the spy add-on failed

@@ -38,7 +38,8 @@ drive install/remove itself — for example, to prove the two-phase install cont
 
 `built_demo_addon` and `assert_no_unexpected_errors` are fixtures defined in this repository's
 `tests_e2e/conftest.py`, not shipped by the plugin. Define your own equivalents (a fixture that
-builds your bundle, and one that calls `nvda.log.assert_no_errors()`), or drop them.
+builds your bundle, and one that calls `nvda.log.assert_no_errors()` after filtering the
+runner-environment errors your CI host produces), or drop them.
 
 [source,python]
 ----
