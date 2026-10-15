@@ -7,17 +7,21 @@ dict of its public attributes plus its repr. The repr is the fallback the host
 falls back on when a field could not be represented.
 """
 
+from __future__ import annotations
+
+from typing import Any, Iterable
+
 _SCALARS = (str, int, float, bool, type(None))
 
 
-def _scalarise(value):
+def _scalarise(value: Any) -> Any:
     if isinstance(value, _SCALARS):
         return value
     return repr(value)
 
 
-def serialise_command(command):
-    fields = {}
+def serialise_command(command: Any) -> dict[str, Any]:
+    fields: dict[str, Any] = {}
     try:
         attributes = vars(command)
     except TypeError:
@@ -34,8 +38,8 @@ def serialise_command(command):
     }
 
 
-def serialise_sequence(sequence):
-    items = []
+def serialise_sequence(sequence: Iterable[Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
     for element in sequence:
         if isinstance(element, str):
             items.append({"kind": "text", "text": element})

@@ -1,6 +1,10 @@
-def test_plain_strings_become_text_items():
-    from nvda_testkit_spy.serialise import serialise_sequence
+import xmlrpc.client
 
+from nvda_testkit_spy.serialise import serialise_sequence
+from speech.commands import BreakCommand, IndexCommand, LangChangeCommand
+
+
+def test_plain_strings_become_text_items():
     items = serialise_sequence(["hello", "world"])
     assert items == [
         {"kind": "text", "text": "hello"},
@@ -9,9 +13,6 @@ def test_plain_strings_become_text_items():
 
 
 def test_commands_become_typed_items_with_their_public_fields():
-    from nvda_testkit_spy.serialise import serialise_sequence
-    from speech.commands import IndexCommand
-
     (item,) = serialise_sequence([IndexCommand(7)])
     assert item["kind"] == "command"
     assert item["type"] == "IndexCommand"
@@ -20,8 +21,6 @@ def test_commands_become_typed_items_with_their_public_fields():
 
 
 def test_unmarshallable_field_values_are_stringified_not_dropped():
-    from nvda_testkit_spy.serialise import serialise_sequence
-
     class Weird:
         def __init__(self):
             self.payload = object()
@@ -36,8 +35,6 @@ def test_unmarshallable_field_values_are_stringified_not_dropped():
 
 
 def test_private_attributes_are_not_serialised():
-    from nvda_testkit_spy.serialise import serialise_sequence
-
     class Command:
         def __init__(self):
             self.visible = 1
@@ -49,8 +46,6 @@ def test_private_attributes_are_not_serialised():
 
 
 def test_a_slots_only_command_degrades_to_an_empty_fields_dict_not_a_crash():
-    from nvda_testkit_spy.serialise import serialise_sequence
-
     class SlottedCommand:
         __slots__ = ("value",)
 
@@ -70,11 +65,6 @@ def test_a_slots_only_command_degrades_to_an_empty_fields_dict_not_a_crash():
 
 
 def test_everything_produced_survives_an_xmlrpc_round_trip():
-    import xmlrpc.client
-
-    from nvda_testkit_spy.serialise import serialise_sequence
-    from speech.commands import BreakCommand, IndexCommand, LangChangeCommand
-
     items = serialise_sequence(
         ["text", IndexCommand(1), LangChangeCommand("en_GB"), BreakCommand(500)]
     )

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 import tempfile
+from argparse import Namespace
 from pathlib import Path
 
 from . import __version__
@@ -15,7 +16,7 @@ from .resolve import CHANNELS, resolve_launcher
 from .spybundle import spy_bundle_path
 
 
-def _provision(args) -> int:
+def _provision(args: Namespace) -> int:
     info = resolve_launcher(args.channel)
     print(f"channel:     {info.channel}")
     print(f"version:     {info.version}")
@@ -29,7 +30,7 @@ def _provision(args) -> int:
     return 0
 
 
-def _doctor(args) -> int:
+def _doctor(args: Namespace) -> int:
     failures = 0
     print(f"nvda-addon-testkit {__version__}")
     print(f"platform:      {sys.platform}")
@@ -82,7 +83,8 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     try:
-        return args.handler(args)
+        code: int = args.handler(args)
+        return code
     except TestkitError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1

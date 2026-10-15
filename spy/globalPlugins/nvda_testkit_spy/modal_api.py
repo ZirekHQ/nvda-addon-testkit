@@ -23,10 +23,13 @@ single-threaded RPC server itself until the dialog closed, and
 simulate_modal's call would never even be dispatched.
 """
 
+from __future__ import annotations
+
 import ctypes
 import ctypes.wintypes as wintypes
 import math
 import time
+from typing import Any
 
 from .registry import rpc_method
 
@@ -89,7 +92,7 @@ class _Input(ctypes.Structure):
     _fields_ = [("type", ctypes.c_ulong), ("u", _InputUnion)]
 
 
-def _user32():
+def _user32() -> Any:
     # GetForegroundWindow()/GetWindow() return a pointer-sized HWND; ctypes
     # defaults an undeclared restype to c_int, which truncates that handle
     # on 64-bit Windows and silently breaks every call built on it below.
@@ -107,14 +110,14 @@ def _user32():
     return dll
 
 
-def _kernel32():
+def _kernel32() -> Any:
     dll = ctypes.windll.kernel32
     dll.GetCurrentProcessId.restype = wintypes.DWORD
     dll.GetCurrentProcessId.argtypes = []
     return dll
 
 
-def _send_vk(vk):
+def _send_vk(vk: int) -> None:
     """Sends `vk` down then up via SendInput, raising if Windows rejected
     either event (e.g. another process holding an input-blocking state)
     instead of letting the caller believe the dialog was actually dismissed.
@@ -132,7 +135,7 @@ def _send_vk(vk):
         )
 
 
-def _foreground_owner():
+def _foreground_owner() -> tuple[Any, int | None]:
     """(hwnd, owning pid) of the current foreground window, or (None, None)."""
     hwnd = _user32().GetForegroundWindow()
     if not hwnd:
@@ -142,7 +145,7 @@ def _foreground_owner():
     return hwnd, pid.value
 
 
-def _is_owned_modal(hwnd):
+def _is_owned_modal(hwnd: Any) -> bool:
     """Best-effort: true if `hwnd` looks like an application-modal dialog.
 
     An app-modal dialog disables its owner window for as long as it's up --
@@ -161,10 +164,10 @@ def _is_owned_modal(hwnd):
 
 
 _UNSET = object()
-_pending_baseline = {"hwnd": _UNSET}
+_pending_baseline: dict[str, Any] = {"hwnd": _UNSET}
 
 
-def remember_foreground_baseline():
+def remember_foreground_baseline() -> None:
     """Records the current foreground hwnd for the next simulate_modal call.
 
     exec_in_nvda_nowait calls this before queueing its scenario, so a dialog
@@ -174,21 +177,21 @@ def remember_foreground_baseline():
     _pending_baseline["hwnd"], _ = _foreground_owner()
 
 
-def _take_baseline():
+def _take_baseline() -> Any:
     hwnd, _pending_baseline["hwnd"] = _pending_baseline["hwnd"], _UNSET
     if hwnd is _UNSET:
         hwnd, _ = _foreground_owner()
     return hwnd
 
 
-def _require_seconds(name, value):
+def _require_seconds(name: str, value: Any) -> None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError("simulate_modal %s must be a number, got %r" % (name, value))
     if not math.isfinite(value) or value < 0:
         raise ValueError("simulate_modal %s must be finite and >= 0, got %r" % (name, value))
 
 
-def _require_vk(gesture):
+def _require_vk(gesture: Any) -> int:
     vk = _VK.get(gesture) if isinstance(gesture, str) else None
     if vk is None:
         raise ValueError(
@@ -198,7 +201,9 @@ def _require_vk(gesture):
 
 
 @rpc_method
-def simulate_modal(gesture="enter", timeout=10.0, poll_interval=0.05):
+def simulate_modal(
+    gesture: str = "enter", timeout: float = 10.0, poll_interval: float = 0.05
+) -> bool:
     """Wait for our own process to bring a modal dialog to the foreground,
     then send it `gesture`. Returns False on timeout instead of raising,
     since a timeout here usually means the scenario never actually opened a

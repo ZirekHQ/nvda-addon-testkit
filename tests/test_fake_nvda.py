@@ -80,8 +80,9 @@ def test_handshake_delay_knob_is_honoured(spawned, tmp_path):
 
 
 def test_never_handshake_knob_never_writes_the_file(spawned, tmp_path):
-    spawned(script={"never_handshake": True})
-    time.sleep(1.0)
+    proc = spawned(script={"never_handshake": True})
+    time.sleep(0.5)
+    assert proc.poll() is None
     assert not (tmp_path / HANDSHAKE).is_file()
 
 

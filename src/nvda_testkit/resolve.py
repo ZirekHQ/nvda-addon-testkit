@@ -10,9 +10,11 @@ directory index.
 from __future__ import annotations
 
 import re
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from .errors import LauncherResolutionError
 
@@ -29,6 +31,8 @@ _SNAPSHOT_RE = re.compile(r"nvda_snapshot_alpha-(\d+),([0-9a-f]+)\.exe")
 _PINNED_RE = re.compile(r"^\d{4}\.\d+(\.\d+)?(beta\d+|rc\d+)?$")
 
 _USER_AGENT = "nvda-addon-testkit"
+_ALLOWED_HOST_SUFFIX = ".nvaccess.org"
+_MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -47,10 +51,42 @@ class LauncherInfo:
     api_compat_to: str | None
 
 
+class _HttpsOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        _require_nvaccess_https(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_OPENER = urllib.request.build_opener(_HttpsOnlyRedirects)
+
+
 def fetch_url(url: str) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return response.read()
+    with _OPENER.open(request, timeout=60) as response:
+        body = response.read(_MAX_DOWNLOAD_BYTES + 1)
+    if len(body) > _MAX_DOWNLOAD_BYTES:
+        raise LauncherResolutionError(
+            f"{url} exceeds the {_MAX_DOWNLOAD_BYTES}-byte download limit."
+        )
+    return bytes(body)
+
+
+def _require_nvaccess_https(url: str) -> str:
+    parts = urllib.parse.urlsplit(url)
+    host = (parts.hostname or "").lower()
+    if parts.scheme != "https" or not host.endswith(_ALLOWED_HOST_SUFFIX):
+        raise LauncherResolutionError(
+            f"Refusing launcher URL {url!r}: it must be https on a *{_ALLOWED_HOST_SUFFIX} host."
+        )
+    return url
 
 
 def _parse_update_check(body: str) -> dict[str, str]:
@@ -74,7 +110,7 @@ def _resolve_released(channel: str, fetch: Callable[[str], bytes]) -> LauncherIn
     return LauncherInfo(
         channel=channel,
         version=fields.get("version", "unknown"),
-        url=launcher_url,
+        url=_require_nvaccess_https(launcher_url),
         sha1=fields.get("launcherHash"),
         api_version=fields.get("apiVersion"),
         api_compat_to=fields.get("apiCompatTo"),

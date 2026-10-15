@@ -1,10 +1,11 @@
+import braille.extensions as extensions
 import pytest
+from braille.display import DisplayDimensions
+from nvda_testkit_spy import braille_tap
 
 
 @pytest.fixture
 def tap():
-    from nvda_testkit_spy import braille_tap
-
     braille_tap.install()
     braille_tap.braille_clear()
     yield braille_tap
@@ -12,8 +13,6 @@ def tap():
 
 
 def _write(text):
-    import braille.extensions as extensions
-
     extensions.pre_writeCells.notify(cells=[], rawText=text, currentCellCount=40)
 
 
@@ -40,9 +39,6 @@ def test_clear_resets_the_index(tap):
 
 
 def test_the_cell_count_is_forced_so_tests_do_not_depend_on_the_display(tap):
-    import braille.extensions as extensions
-    from braille.display import DisplayDimensions
-
     tap.braille_set_cell_count(80)
     dimensions = extensions.filter_displayDimensions.apply(DisplayDimensions(2, 20))
     assert dimensions.numCols == 80

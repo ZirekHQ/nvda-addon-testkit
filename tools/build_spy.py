@@ -14,6 +14,7 @@ BUNDLE_NAME = "nvda-testkit-spy.nvda-addon"
 
 _SKIP_DIRS = {"__pycache__"}
 _SKIP_SUFFIXES = {".pyc", ".pyo"}
+_FIXED_DATE = (1980, 1, 1, 0, 0, 0)
 
 
 def build() -> Path:
@@ -37,11 +38,15 @@ def build() -> Path:
     )
     with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in paths:
-            archive.write(path, path.relative_to(SPY_DIR).as_posix())
+            info = zipfile.ZipInfo(path.relative_to(SPY_DIR).as_posix(), _FIXED_DATE)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            archive.writestr(info, path.read_bytes())
 
     print(f"wrote {bundle} ({bundle.stat().st_size} bytes, {len(paths)} entries)")
     return bundle
 
 
 if __name__ == "__main__":
-    sys.exit(0 if build() else 1)
+    build()
+    sys.exit(0)

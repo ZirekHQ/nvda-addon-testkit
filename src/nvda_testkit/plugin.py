@@ -12,7 +12,7 @@ from .client import NvdaClient
 from .dsl import Nvda
 from .errors import ProvisionError
 from .provisioning import Provisioned, provision, provision_fake
-from .settings import load_settings
+from .settings import TestkitSettings, load_settings
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -44,31 +44,48 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "fresh_nvda: restart NVDA before this test")
 
+
+def _worker_count(config: pytest.Config) -> int:
+    worker_input = getattr(config, "workerinput", None)
+    if isinstance(worker_input, dict):
+        return int(worker_input.get("workercount", 1))
     workers = getattr(config.option, "numprocesses", None)
-    if isinstance(workers, int) and workers > 1:
-        raise pytest.UsageError(
+    return workers if isinstance(workers, int) else 1
+
+
+def _refuse_parallel_nvda(config: pytest.Config) -> None:
+    workers = _worker_count(config)
+    if workers > 1:
+        raise ProvisionError(
             f"nvda-addon-testkit cannot run in parallel: -n {workers} was requested, but only "
             "one NVDA can own a desktop session. Shard across CI jobs instead."
         )
 
 
+def _flag(enabled: object) -> bool | None:
+    return True if enabled else None
+
+
 @pytest.fixture(scope="session")
-def nvda_settings(pytestconfig: pytest.Config):
+def nvda_settings(pytestconfig: pytest.Config) -> TestkitSettings:
     option = pytestconfig.option
     return load_settings(
         overrides={
             "channel": option.nvda_version or option.nvda_channel,
             "timeout_scale": option.nvda_timeout_scale,
-            "allow_eval": True if option.nvda_allow_eval else None,
-            "keep_portable": True if option.nvda_keep_portable else None,
+            "allow_eval": _flag(option.nvda_allow_eval),
+            "keep_portable": _flag(option.nvda_keep_portable),
             "out_dir": option.nvda_out_dir,
-            "verbose": True if option.nvda_verbose else None,
+            "verbose": _flag(option.nvda_verbose),
         }
     )
 
 
 @pytest.fixture(scope="session")
-def _nvda_provisioned(nvda_settings, pytestconfig: pytest.Config):
+def _nvda_provisioned(
+    nvda_settings: TestkitSettings, pytestconfig: pytest.Config
+) -> Iterator[Provisioned]:
+    _refuse_parallel_nvda(pytestconfig)
     fake = pytestconfig.option.nvda_fake
     running: Provisioned = (
         provision_fake(nvda_settings, Path(fake)) if fake else provision(nvda_settings)
@@ -80,22 +97,26 @@ def _nvda_provisioned(nvda_settings, pytestconfig: pytest.Config):
 
 
 @pytest.fixture(scope="session")
-def nvda_session(_nvda_provisioned, nvda_settings) -> NvdaClient:
-    return NvdaClient(_nvda_provisioned.process, _nvda_provisioned.rpc, settings=nvda_settings)
+def nvda_session(_nvda_provisioned: Provisioned, nvda_settings: TestkitSettings) -> NvdaClient:
+    client = NvdaClient(_nvda_provisioned.process, _nvda_provisioned.rpc, settings=nvda_settings)
+    _nvda_provisioned.current_rpc = lambda: client.rpc
+    return client
 
 
 @pytest.fixture
 def nvda(request: pytest.FixtureRequest, nvda_session: NvdaClient) -> Iterator[Nvda]:
-    if request.node.get_closest_marker("fresh_nvda"):
-        nvda_session.restart_harness()
-    nvda_session.reset()
     dsl = Nvda(nvda_session, bundle=lambda: request.getfixturevalue("addon_bundle"))
-    yield dsl
-    dsl.finish()
+    try:
+        if request.node.get_closest_marker("fresh_nvda"):
+            nvda_session.restart_harness()
+        nvda_session.reset()
+        yield dsl
+    finally:
+        dsl.finish()
 
 
 @pytest.fixture(autouse=True)
-def nvda_reset(request: pytest.FixtureRequest):
+def nvda_reset(request: pytest.FixtureRequest) -> Iterator[None]:
     """Reset after any test that touched NVDA, so the next one starts clean.
 
     Autouse, but deliberately lazy: a test that never asks for `nvda` never
@@ -115,7 +136,7 @@ def nvda_reset(request: pytest.FixtureRequest):
 
 
 @pytest.fixture(scope="session")
-def addon_bundle(nvda_settings) -> Path:
+def addon_bundle(nvda_settings: TestkitSettings) -> Path:
     pattern = nvda_settings.addon_bundle
     if not pattern:
         raise ProvisionError(

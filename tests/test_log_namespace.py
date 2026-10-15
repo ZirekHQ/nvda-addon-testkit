@@ -1,3 +1,5 @@
+import threading
+
 import pytest
 
 from nvda_testkit.namespaces.log import LogNamespace, LogRecord
@@ -67,8 +69,6 @@ def test_since_lets_a_test_ignore_startup_noise(log):
 
 
 def test_wait_for_finds_a_later_record(log):
-    import threading
-
     namespace, rpc = log
     threading.Timer(0.2, lambda: _emit(rpc, "INFO", "voice loaded ok")).start()
     found = namespace.wait_for("voice loaded", timeout=10)

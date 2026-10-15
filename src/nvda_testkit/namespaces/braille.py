@@ -43,15 +43,16 @@ class BrailleNamespace:
     ) -> str:
         start = self.index() if since is None else since
 
-        def find():
+        def find() -> str | None:
             for text in self.since(start):
                 if re.search(pattern, text, flags):
                     return text
             return None
 
-        return self._rpc.poll_until(
+        found: str = self._rpc.poll_until(
             find,
             timeout=timeout,
             description=f"braille matching {pattern!r}",
             last_seen=lambda: self.since(start),
         )
+        return found

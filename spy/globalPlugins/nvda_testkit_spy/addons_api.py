@@ -7,11 +7,17 @@ is preserved here rather than hidden, because exercising installTasks.onInstall
 is the whole reason a test would call this.
 """
 
+from __future__ import annotations
+
+from typing import Any
+
+import addonHandler
+
 from .mainthread import run_on_main_thread
 from .registry import rpc_method
 
 
-def _state_of(addon):
+def _state_of(addon: Any) -> str:
     if addon.isPendingRemove:
         return "PENDING_REMOVE"
     if addon.isPendingInstall:
@@ -21,16 +27,14 @@ def _state_of(addon):
     return "ENABLED"
 
 
-def _find(name):
-    import addonHandler
-
+def _find(name: str) -> Any:
     for addon in addonHandler.getAvailableAddons(refresh=True):
         if addon.name == name:
             return addon
     return None
 
 
-def _describe(addon):
+def _describe(addon: Any) -> dict[str, str]:
     return {
         "name": addon.name,
         "version": getattr(addon, "version", "unknown"),
@@ -38,35 +42,31 @@ def _describe(addon):
     }
 
 
-def _list():
-    import addonHandler
-
+def _list() -> list[dict[str, str]]:
     return [_describe(addon) for addon in addonHandler.getAvailableAddons(refresh=True)]
 
 
 @rpc_method
-def addons_list(timeout=10.0):
+def addons_list(timeout: float = 10.0) -> list[dict[str, str]]:
     return run_on_main_thread(_list, timeout=timeout)
 
 
-def _state(name):
+def _state(name: str) -> str:
     addon = _find(name)
     return _state_of(addon) if addon is not None else "NOT_INSTALLED"
 
 
 @rpc_method
-def addons_state(name, timeout=10.0):
+def addons_state(name: str, timeout: float = 10.0) -> str:
     return run_on_main_thread(lambda: _state(name), timeout=timeout)
 
 
-def _install_errors(bundle):
+def _install_errors(bundle: Any) -> str:
     failures = getattr(bundle, "_installExceptions", None) or ()
     return "; ".join("%s: %s" % (type(e).__name__, e) for e in failures) or "none recorded"
 
 
-def _install(bundle_path):
-    import addonHandler
-
+def _install(bundle_path: str) -> dict[str, str]:
     bundle = addonHandler.AddonBundle(bundle_path)
     addon = addonHandler.installAddonBundle(bundle)
     if addon is None:
@@ -84,11 +84,11 @@ def _install(bundle_path):
 
 
 @rpc_method
-def addons_install(bundle_path, timeout=120.0):
+def addons_install(bundle_path: str, timeout: float = 120.0) -> dict[str, str]:
     return run_on_main_thread(lambda: _install(bundle_path), timeout=timeout)
 
 
-def _remove(name):
+def _remove(name: str) -> bool:
     addon = _find(name)
     if addon is None:
         raise LookupError("Add-on %r is not installed, so it cannot be removed." % (name,))
@@ -97,5 +97,5 @@ def _remove(name):
 
 
 @rpc_method
-def addons_remove(name, timeout=60.0):
+def addons_remove(name: str, timeout: float = 60.0) -> bool:
     return run_on_main_thread(lambda: _remove(name), timeout=timeout)

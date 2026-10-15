@@ -9,46 +9,37 @@ crashes on startup must fail in seconds, not at the handshake deadline.
 from __future__ import annotations
 
 import contextlib
+import enum
 import json
 import logging
 import os
 import secrets
+import signal
 import subprocess
 import sys
 import time
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
 from pathlib import Path
 
-from .errors import HandshakeTimeout, NvdaStartupError
+from .errors import HandshakeTimeout, NvdaStartupError, ProtocolMismatchError
+from .handshake import Handshake
 from .portable import PortableNvda
+from .rpcclient import RpcClient
 
 HANDSHAKE_FILENAME = "testkit-handshake.json"
 
 _POLL_INTERVAL = 0.05
 
 
+class Ownership(enum.Enum):
+    """Whether the tracked NVDA is a process we spawned or one NVDA relaunched itself."""
+
+    SPAWNED = "spawned"
+    ADOPTED = "adopted"
+
+
 def new_token() -> str:
     return secrets.token_hex(16)
-
-
-@dataclass(frozen=True)
-class Handshake:
-    port: int
-    pid: int
-    nvda_version: str
-    api_version: str | None
-    api_compat_to: str | None
-
-    @classmethod
-    def from_payload(cls, payload: dict) -> Handshake:
-        return cls(
-            port=int(payload["port"]),
-            pid=int(payload["pid"]),
-            nvda_version=str(payload.get("nvdaVersion", "unknown")),
-            api_version=payload.get("apiVersion"),
-            api_compat_to=payload.get("apiCompatTo"),
-        )
 
 
 def nvda_argv(
@@ -95,9 +86,9 @@ class NvdaProcess:
         self.timeout_scale = timeout_scale
         self._quit_via = quit_via
         self._extra_env = dict(env or {})
-        self._proc: subprocess.Popen | None = None
+        self._proc: subprocess.Popen[bytes] | None = None
         self._handshake: Handshake | None = None
-        self._owns_current_process = True
+        self._ownership = Ownership.SPAWNED
 
     @property
     def handshake_path(self) -> Path:
@@ -109,7 +100,7 @@ class NvdaProcess:
 
     @property
     def is_running(self) -> bool:
-        if self._owns_current_process:
+        if self._ownership is Ownership.SPAWNED:
             return self._proc is not None and self._proc.poll() is None
         return self._handshake is not None
 
@@ -187,12 +178,22 @@ class NvdaProcess:
         flag = f"--log-file={self.log_file}"
         self.argv = [flag if arg.startswith("--log-file=") else arg for arg in self.argv]
 
+    def _read_handshake(self) -> Handshake | None:
+        """The published handshake, or None while absent or still being written."""
+        if not self.handshake_path.is_file():
+            return None
+        try:
+            payload = json.loads(self.handshake_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return None
+        return Handshake.from_payload(payload)
+
     def start(self, timeout: float = 60) -> Handshake:
         deadline_seconds = timeout * self.timeout_scale
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.handshake_path.unlink(missing_ok=True)
         self._handshake = None
-        self._owns_current_process = True
+        self._ownership = Ownership.SPAWNED
         self._start_count += 1
         self._number_log_file()
 
@@ -207,14 +208,14 @@ class NvdaProcess:
                     f"Command: {' '.join(self.argv)}\n"
                     f"Log tail:\n{self.log_tail()}"
                 )
-            if self.handshake_path.is_file():
-                try:
-                    payload = json.loads(self.handshake_path.read_text(encoding="utf-8"))
-                except json.JSONDecodeError:
-                    time.sleep(_POLL_INTERVAL)
-                    continue
-                self._handshake = Handshake.from_payload(payload)
-                return self._handshake
+            try:
+                candidate = self._read_handshake()
+            except (KeyError, ValueError, TypeError, ProtocolMismatchError):
+                self.kill()
+                raise
+            if candidate is not None:
+                self._handshake = candidate
+                return candidate
             time.sleep(_POLL_INTERVAL)
 
         diagnostics = self._hang_diagnostics()
@@ -235,17 +236,11 @@ class NvdaProcess:
         deadline_seconds = timeout * self.timeout_scale
         deadline = time.monotonic() + deadline_seconds
         while time.monotonic() < deadline:
-            if self.handshake_path.is_file():
-                try:
-                    payload = json.loads(self.handshake_path.read_text(encoding="utf-8"))
-                except json.JSONDecodeError:
-                    time.sleep(_POLL_INTERVAL)
-                    continue
-                candidate = Handshake.from_payload(payload)
-                if candidate.pid != exclude_pid:
-                    self._handshake = candidate
-                    self._owns_current_process = False
-                    return candidate
+            candidate = self._read_handshake()
+            if candidate is not None and candidate.pid != exclude_pid:
+                self._handshake = candidate
+                self._ownership = Ownership.ADOPTED
+                return candidate
             time.sleep(_POLL_INTERVAL)
         raise HandshakeTimeout(
             f"NVDA never announced a replacement process within {deadline_seconds:.1f}s of "
@@ -256,6 +251,8 @@ class NvdaProcess:
     def _kill_pid(self, pid: int) -> None:
         """Best-effort: terminate a process we did not spawn ourselves."""
         if sys.platform != "win32":
+            with contextlib.suppress(OSError):
+                os.kill(pid, signal.SIGTERM)
             return
         with contextlib.suppress(OSError, subprocess.TimeoutExpired):
             subprocess.run(
@@ -269,13 +266,10 @@ class NvdaProcess:
         if self._quit_via == "rpc":
             if self._handshake is None:
                 return
-            import xmlrpc.client
-
-            proxy = xmlrpc.client.ServerProxy(
-                f"http://127.0.0.1:{self._handshake.port}", allow_none=True
-            )
+            client = RpcClient.from_handshake(self._handshake, token=self.token)
             with contextlib.suppress(Exception):
-                proxy.quit(self.token)
+                client.call("quit")
+            client.close()
             return
         with contextlib.suppress(OSError, subprocess.TimeoutExpired):
             subprocess.run(
@@ -285,11 +279,22 @@ class NvdaProcess:
                 timeout=30 * self.timeout_scale,
             )
 
+    def _release_adopted(self) -> None:
+        """Stop the relaunched process and reap the original handle."""
+        if self._handshake is not None:
+            self._kill_pid(self._handshake.pid)
+        self._handshake = None
+        original, self._proc = self._proc, None
+        if original is not None:
+            if original.poll() is None:
+                original.kill()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                original.wait(timeout=30)
+        self._ownership = Ownership.SPAWNED
+
     def quit(self, timeout: float = 30) -> None:
-        if not self._owns_current_process:
-            if self._handshake is not None:
-                self._kill_pid(self._handshake.pid)
-            self._handshake = None
+        if self._ownership is Ownership.ADOPTED:
+            self._release_adopted()
             return
         if self._proc is None:
             return
@@ -308,10 +313,8 @@ class NvdaProcess:
         self.kill()
 
     def kill(self) -> None:
-        if not self._owns_current_process:
-            if self._handshake is not None:
-                self._kill_pid(self._handshake.pid)
-            self._handshake = None
+        if self._ownership is Ownership.ADOPTED:
+            self._release_adopted()
             return
         if self._proc is None:
             return

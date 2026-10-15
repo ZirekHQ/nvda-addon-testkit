@@ -1,10 +1,10 @@
 import pytest
+from nvda_testkit_spy import modal_api
+from nvda_testkit_spy.registry import METHODS
 
 
 @pytest.fixture
 def api():
-    from nvda_testkit_spy import modal_api
-
     modal_api._pending_baseline["hwnd"] = modal_api._UNSET
     return modal_api
 
@@ -18,9 +18,6 @@ def _fake_user32(**methods):
 
 
 def test_it_is_registered_under_the_name_the_host_calls():
-    from nvda_testkit_spy import modal_api  # noqa: F401  -- importing is what registers it
-    from nvda_testkit_spy.registry import METHODS
-
     assert "simulate_modal" in METHODS
 
 

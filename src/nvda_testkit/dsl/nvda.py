@@ -2,28 +2,46 @@
 
 from __future__ import annotations
 
+import functools
 import re
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
-from typing import Any, overload
+from typing import Any, Concatenate, ParamSpec, TypeVar, cast, overload
 
 from ..actionmark import ActionMark
-from ..client import NvdaClient, NvdaVersion
+from ..client import NvdaClient, ProcessHandle
 from ..namespaces.addons import AddonsNamespace, AddonState
 from ..namespaces.braille import BrailleNamespace
 from ..namespaces.config import ConfigNamespace
 from ..namespaces.keys import KeysNamespace
 from ..namespaces.log import LogNamespace
 from ..namespaces.speech import SpeechNamespace
-from ..process import NvdaProcess
 from ..rpcclient import RpcClient
 from ..settings import TestkitSettings
+from ..version import NvdaVersion
 from .dialogs import Dialogs
 from .hearing import Hearing
 from .lifecycle import Lifecycle, no_bundle
 from .logsteps import LogSteps
 from .matching import build_matcher
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def _guarded(
+    method: Callable[Concatenate[Nvda, _P], _R],
+) -> Callable[Concatenate[Nvda, _P], _R]:
+    """Refuse to run a step while a dialog opened by this test is still open."""
+
+    @functools.wraps(method)
+    def wrapper(self: Nvda, *args: _P.args, **kwargs: _P.kwargs) -> _R:
+        __tracebackhide__ = True
+        self._dialogs.require_none_open()
+        return method(self, *args, **kwargs)
+
+    return cast("Callable[Concatenate[Nvda, _P], _R]", wrapper)
 
 
 def _failure_of(step: Callable[[], None]) -> Exception | None:
@@ -88,7 +106,7 @@ class Nvda:
         return self._client.addons
 
     @property
-    def process(self) -> NvdaProcess:
+    def process(self) -> ProcessHandle:
         return self._client.process
 
     @property
@@ -105,8 +123,8 @@ class Nvda:
     def reset(self) -> None:
         self._client.reset()
 
+    @_guarded
     def restart_harness(self, *, timeout: float = 60.0) -> None:
-        self._dialogs.require_none_open()
         self._client.restart_harness(timeout=timeout)
 
     def eval(self, source: str) -> Any:
@@ -127,19 +145,19 @@ class Nvda:
     def _within(self, within: float | None) -> float:
         return self.settings.timeout if within is None else within
 
+    @_guarded
     def press(self, gesture: str, *, timeout: float = 10.0) -> None:
-        self._dialogs.require_none_open()
         self._client.keys.press(gesture, timeout=timeout)
 
+    @_guarded
     def type(self, text: str, *, timeout: float = 30.0) -> None:
-        self._dialogs.require_none_open()
         self._client.keys.type_text(text, timeout=timeout)
 
     def relaunch(self, *, timeout: float = 60.0) -> None:
         self.restart_harness(timeout=timeout)
 
+    @_guarded
     def restart_nvda(self, *, timeout: float = 60.0) -> None:
-        self._dialogs.require_none_open()
         self._client.restart_nvda(timeout=timeout)
 
     @overload
@@ -164,11 +182,11 @@ class Nvda:
             mark=self._client.last_action,
         )
 
-    def _pid(self) -> int:
+    def _pid(self) -> int | None:
         handshake = self._client.process.handshake
-        return handshake.pid if handshake else -1
+        return handshake.pid if handshake else None
 
-    def _search_mark(self, entry: ActionMark, pid: int) -> ActionMark:
+    def _search_mark(self, entry: ActionMark, pid: int | None) -> ActionMark:
         if self._pid() == pid:
             return entry
         return ActionMark(0, "relaunching NVDA")
@@ -234,17 +252,17 @@ class Nvda:
         __tracebackhide__ = True
         self._logs.should_have_no_errors(ignoring)
 
+    @_guarded
     def install_addon(self, path: Path | None = None) -> None:
-        self._dialogs.require_none_open()
         self._lifecycle.install(path)
 
+    @_guarded
     def remove_addon(self, name: str) -> None:
-        self._dialogs.require_none_open()
         self._lifecycle.remove(name)
 
+    @_guarded
     def should_have_addon(self, name: str, state: str | AddonState) -> None:
         __tracebackhide__ = True
-        self._dialogs.require_none_open()
         self._lifecycle.should_have(name, state)
 
     def open_dialog(self, scenario: str) -> None:

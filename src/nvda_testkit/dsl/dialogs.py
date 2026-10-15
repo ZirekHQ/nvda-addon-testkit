@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from ..client import NvdaClient
-from ..errors import RpcError, TestkitError
+from ..errors import RpcError, TestkitError, WaitTimeout
 from . import messages
 
 LEAK = "Dialog opened by this test was still open at the end. Call close_dialog()."
@@ -53,7 +53,7 @@ class Dialogs:
         try:
             self._client.simulate_modal("escape", timeout=5.0)
             self._client.wait_until_idle(timeout=5.0)
-        except RpcError:
+        except (RpcError, WaitTimeout):
             self._client.restart_harness()
         finally:
             self._open = False

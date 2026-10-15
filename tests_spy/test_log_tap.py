@@ -1,10 +1,10 @@
 import pytest
+from logHandler import log
+from nvda_testkit_spy import log_tap
 
 
 @pytest.fixture
 def tap():
-    from nvda_testkit_spy import log_tap
-
     log_tap.install()
     log_tap.log_clear()
     yield log_tap
@@ -12,8 +12,6 @@ def tap():
 
 
 def _emit(level, message):
-    from logHandler import log
-
     getattr(log, level)(message)
 
 
@@ -33,8 +31,6 @@ def test_index_advances_and_since_slices(tap):
 
 
 def test_exception_records_carry_their_traceback(tap):
-    from logHandler import log
-
     try:
         raise ValueError("kaboom")
     except ValueError:
@@ -55,3 +51,16 @@ def test_uninstall_detaches_the_handler(tap):
     _emit("info", "after uninstall")
     tap.install()
     assert tap.log_index() == 0
+
+
+def test_a_message_that_cannot_be_formatted_is_captured_with_a_placeholder(tap):
+    class _Unprintable:
+        def __str__(self):
+            raise RuntimeError("no string for you")
+
+    import logging
+
+    record = logging.LogRecord("test", logging.INFO, __file__, 1, _Unprintable(), None, None)
+    log_tap._HANDLER.emit(record)
+    (record,) = tap.log_since(0)
+    assert record["message"] == "<unformattable log message>"

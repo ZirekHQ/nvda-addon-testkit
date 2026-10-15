@@ -26,6 +26,10 @@ class HashMismatchError(ProvisionError):
         )
 
 
+class SettingsError(TestkitError, ValueError):
+    """A configuration value is invalid."""
+
+
 class UnsupportedPlatformError(TestkitError):
     """This operation needs a real Windows host."""
 
@@ -36,6 +40,10 @@ class NvdaStartupError(TestkitError):
 
 class HandshakeTimeout(NvdaStartupError):
     """NVDA started but the spy add-on never announced itself."""
+
+
+class ProtocolMismatchError(NvdaStartupError):
+    """The spy speaks a different wire protocol version than this client."""
 
 
 class RpcError(TestkitError):
