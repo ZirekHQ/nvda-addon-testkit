@@ -105,7 +105,7 @@ jobs:
 
 `tests_e2e/` tests run serially: only one NVDA can own a desktop session, so
 the plugin refuses to start under `pytest-xdist` with more than one worker
-(`pytest -n 2 tests_e2e/` fails fast with a `UsageError` rather than
+(`pytest -n 2 tests_e2e/` fails fast with a `ProvisionError` rather than
 producing nonsense). Shard across CI *jobs* — the matrix above, one job per
 `(os, channel)` pair — instead of workers within one job.
 
