@@ -78,7 +78,7 @@ def test_rpc_quit_goes_through_the_header_authenticated_client(monkeypatch):
     import types
     from pathlib import Path
 
-    from nvda_testkit import process as process_module
+    import nvda_testkit.process as process_module
 
     sent = []
 
@@ -127,3 +127,12 @@ def test_launcher_downloads_refuse_redirects_off_https():
     request = urllib.request.Request("https://download.nvaccess.org/x")
     with pytest.raises(LauncherResolutionError):
         handler.redirect_request(request, None, 302, "Found", {}, "ftp://example.org/x.exe")
+    with pytest.raises(LauncherResolutionError):
+        handler.redirect_request(request, None, 302, "Found", {}, "https://example.org/x.exe")
+
+
+def test_ini_list_members_reject_newlines():
+    from nvda_testkit.errors import ProvisionError
+
+    with pytest.raises(ProvisionError):
+        render_nvda_ini({"general": {"x": ["a\nb", "c"]}})

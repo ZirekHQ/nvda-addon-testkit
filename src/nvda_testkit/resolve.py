@@ -61,10 +61,7 @@ class _HttpsOnlyRedirects(urllib.request.HTTPRedirectHandler):
         headers: Any,
         newurl: str,
     ) -> urllib.request.Request | None:
-        if urllib.parse.urlsplit(newurl).scheme != "https":
-            raise LauncherResolutionError(
-                f"Refusing to follow a redirect to {newurl!r}: not https."
-            )
+        _require_nvaccess_https(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 

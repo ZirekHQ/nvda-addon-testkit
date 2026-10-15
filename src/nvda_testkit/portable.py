@@ -76,11 +76,20 @@ def _render_name(name: str) -> str:
     return _render_scalar(name)
 
 
+def _render_member(value: object) -> str:
+    text = _render_scalar(value)
+    if "\n" in text or "\r" in text:
+        raise ProvisionError(
+            f"Cannot render {value!r} as an nvda.ini list member: it has a newline."
+        )
+    return text
+
+
 def _render_value(value: object) -> str:
     if isinstance(value, (list, tuple)):
         if len(value) == 1:
-            return _render_scalar(value[0]) + ","
-        return ", ".join(_render_scalar(item) for item in value) if value else ","
+            return _render_member(value[0]) + ","
+        return ", ".join(_render_member(item) for item in value) if value else ","
     return _render_scalar(value)
 
 
