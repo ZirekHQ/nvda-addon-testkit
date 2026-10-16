@@ -45,9 +45,9 @@ def test_a_disabled_addon_reports_disabled(api):
     assert api.addons_state("demo-addon") == "DISABLED"
 
 
-def test_remove_marks_pending_remove(api):
+def test_remove_marks_pending_remove(api, monkeypatch):
     api.addons_install("/tmp/demo.nvda-addon")
-    addonHandler.INSTALLED[0].isPendingInstall = False
+    monkeypatch.setattr(addonHandler.INSTALLED[0], "isPendingInstall", False)
     api.addons_remove("demo-addon")
     assert api.addons_state("demo-addon") == "PENDING_REMOVE"
 
@@ -57,20 +57,20 @@ def test_removing_something_absent_is_an_error_not_a_silent_no_op(api):
         api.addons_remove("never-existed")
 
 
-def test_a_bundle_that_will_not_extract_reports_why(api):
-    addonHandler.NEXT_INSTALL_OUTCOME = "extract-failure"
+def test_a_bundle_that_will_not_extract_reports_why(api, monkeypatch):
+    monkeypatch.setattr(addonHandler, "NEXT_INSTALL_OUTCOME", "extract-failure")
     with pytest.raises(RuntimeError, match="could not extract"):
         api.addons_install("/tmp/corrupt.nvda-addon")
 
 
-def test_a_failing_on_install_task_is_not_reported_as_success(api):
-    addonHandler.NEXT_INSTALL_OUTCOME = "install-task-failure"
+def test_a_failing_on_install_task_is_not_reported_as_success(api, monkeypatch):
+    monkeypatch.setattr(addonHandler, "NEXT_INSTALL_OUTCOME", "install-task-failure")
     with pytest.raises(RuntimeError, match="onInstall failed"):
         api.addons_install("/tmp/demo.nvda-addon")
     assert api.addons_state("demo-addon") == "NOT_INSTALLED"
 
 
-def test_a_failed_install_names_the_underlying_exception(api):
-    addonHandler.NEXT_INSTALL_OUTCOME = "install-task-failure"
+def test_a_failed_install_names_the_underlying_exception(api, monkeypatch):
+    monkeypatch.setattr(addonHandler, "NEXT_INSTALL_OUTCOME", "install-task-failure")
     with pytest.raises(RuntimeError, match="RuntimeError: onInstall exploded"):
         api.addons_install("/tmp/demo.nvda-addon")

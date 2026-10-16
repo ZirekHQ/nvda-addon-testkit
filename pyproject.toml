@@ -8,15 +8,13 @@ dynamic = ["version"]
 description = "End-to-end testing for NVDA add-ons against a real NVDA"
 readme = "README.md"
 license = "GPL-2.0-or-later"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 authors = [{ name = "Zirek" }]
 keywords = ["nvda", "accessibility", "screen-reader", "testing", "pytest"]
 classifiers = [
     "Framework :: Pytest",
     "Intended Audience :: Developers",
     "Operating System :: Microsoft :: Windows",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Testing",
@@ -87,7 +85,7 @@ omit = ["src/nvda_testkit/_spy/*"]
 fail_under = 85
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 platform = "win32"
 files = ["src/nvda_testkit", "spy"]
 strict = true

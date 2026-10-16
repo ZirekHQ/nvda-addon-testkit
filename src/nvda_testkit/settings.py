@@ -1,6 +1,6 @@
 """Configuration from [tool.nvda-testkit] in pyproject.toml, plus CLI overrides.
 
-tomllib is stdlib from 3.11, which is the floor -- no external TOML dependency.
+tomllib is stdlib, so there is no external TOML dependency.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import os
 import tomllib
 import warnings
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -107,27 +107,31 @@ def cache_dir_from_environment() -> Path | None:
     return _cache_dir_from(os.environ)
 
 
+def _values_from_pyproject(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {}
+    with path.open("rb") as handle:
+        section = tomllib.load(handle).get("tool", {}).get("nvda-testkit", {})
+    values: dict[str, Any] = {}
+    for key, value in section.items():
+        field = _KEY_MAP.get(key)
+        if field is None:
+            warnings.warn(
+                f"nvda-testkit: unknown key {key!r} under [tool.nvda-testkit] is ignored.",
+                stacklevel=3,
+            )
+            continue
+        values[field] = _coerce(field, value)
+    return values
+
+
 def load_settings(
     pyproject: Path | None = None,
     overrides: Mapping[str, object] | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> TestkitSettings:
     path = Path(pyproject) if pyproject is not None else Path("pyproject.toml")
-    values: dict[str, Any] = {}
-
-    if path.is_file():
-        with path.open("rb") as handle:
-            document = tomllib.load(handle)
-        section = document.get("tool", {}).get("nvda-testkit", {})
-        for key, value in section.items():
-            field = _KEY_MAP.get(key)
-            if field is None:
-                warnings.warn(
-                    f"nvda-testkit: unknown key {key!r} under [tool.nvda-testkit] is ignored.",
-                    stacklevel=2,
-                )
-                continue
-            values[field] = _coerce(field, value)
+    values = _values_from_pyproject(path)
 
     for field, value in (overrides or {}).items():
         if value is not None:
@@ -138,4 +142,4 @@ def load_settings(
         if from_env is not None:
             values["cache_dir"] = from_env
 
-    return replace(TestkitSettings(), **values)
+    return TestkitSettings(**values)

@@ -24,10 +24,10 @@ _CELL_COUNT = 40
 _INSTALLED = False
 
 
-def _on_write_cells(  # NOSONAR
-    cells: Any = None, rawText: str | None = None, currentCellCount: Any = None, **kwargs: Any
-) -> None:
-    _WRITES.append({"text": rawText if rawText is not None else "", "timestamp": time.time()})
+def _on_write_cells(**kwargs: Any) -> None:
+    """NVDA calls this with keyword arguments; the text arrives as `rawText`."""
+    raw_text = kwargs.get("rawText")
+    _WRITES.append({"text": raw_text if raw_text is not None else "", "timestamp": time.time()})
 
 
 def _filter_dimensions(dimensions: Any, **kwargs: Any) -> Any:

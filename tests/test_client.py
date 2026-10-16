@@ -164,7 +164,8 @@ def test_restart_nvda_adopts_the_replacement_handshake(relaunched_pid, permissiv
     handshake = proc.handshake
 
     def fake_core_restart(source):
-        assert "core" in source and "restart" in source
+        assert "core" in source
+        assert "restart" in source
         payload = _relaunch_payload(handshake, relaunched_pid)
         proc.handshake_path.write_text(json.dumps(payload), encoding="utf-8")
         raise ConnectionLost("connection dropped mid-response, as a real restart would")

@@ -7,7 +7,7 @@ import re
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
-from typing import Concatenate, ParamSpec, TypeVar, cast, overload
+from typing import Concatenate, cast, overload
 
 from ..client import NvdaClient
 from ..namespaces.addons import AddonState
@@ -19,22 +19,19 @@ from .matching import build_matcher
 from .passthrough import ClientPassThrough
 from .teardown import run_all
 
-_P = ParamSpec("_P")
-_R = TypeVar("_R")
 
-
-def _guarded(
-    method: Callable[Concatenate[Nvda, _P], _R],
-) -> Callable[Concatenate[Nvda, _P], _R]:
+def _guarded[**P, R](
+    method: Callable[Concatenate[Nvda, P], R],
+) -> Callable[Concatenate[Nvda, P], R]:
     """Refuse to run a step while a dialog opened by this test is still open."""
 
     @functools.wraps(method)
-    def wrapper(self: Nvda, *args: _P.args, **kwargs: _P.kwargs) -> _R:
+    def wrapper(self: Nvda, *args: P.args, **kwargs: P.kwargs) -> R:
         __tracebackhide__ = True
         self._dialogs.require_none_open()
         return method(self, *args, **kwargs)
 
-    return cast("Callable[Concatenate[Nvda, _P], _R]", wrapper)
+    return cast("Callable[Concatenate[Nvda, P], R]", wrapper)
 
 
 class Nvda(ClientPassThrough):
