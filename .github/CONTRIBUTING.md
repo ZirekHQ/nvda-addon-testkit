@@ -22,7 +22,7 @@ python tools/build_spy.py
 ## Running tests
 
 ```bash
-pytest                       # host and spy unit tests -- any platform
+pytest -n auto                # host and spy unit tests -- any platform, parallel
 pytest tests_e2e/ -v         # real NVDA -- Windows only
 nvda-testkit doctor          # check this machine
 ```

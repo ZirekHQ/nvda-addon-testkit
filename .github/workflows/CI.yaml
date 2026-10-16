@@ -102,7 +102,8 @@ jobs:
       - run: uv run --no-sync python tools/build_spy.py
       # Bare `pytest` so testpaths picks up tests_spy/ too. An explicit
       # `pytest tests/` silently skips every spy test in CI.
-      - run: uv run --no-sync pytest -v
+      # `-n auto` is unit-only: the e2e plugin refuses more than one worker.
+      - run: uv run --no-sync pytest -v -n auto
 
   e2e:
     runs-on: ${{ matrix.os }}
