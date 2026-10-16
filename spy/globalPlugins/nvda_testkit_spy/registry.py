@@ -8,14 +8,12 @@ from __future__ import annotations
 
 import hmac
 import traceback
-from typing import Any, Callable, TypeVar
-
-F = TypeVar("F", bound=Callable[..., Any])
+from typing import Any, Callable
 
 METHODS: dict[str, Callable[..., Any]] = {}
 
 
-def rpc_method(fn: F) -> F:
+def rpc_method[F: Callable[..., Any]](fn: F) -> F:
     """Register `fn` as callable over XML-RPC under its own name."""
     METHODS[fn.__name__] = fn
     return fn

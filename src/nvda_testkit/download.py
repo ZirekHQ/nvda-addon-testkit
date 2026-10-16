@@ -22,6 +22,8 @@ from .resolve import LauncherInfo, fetch_url
 from .settings import cache_dir_from_environment
 
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]")
+_SHA1_SUFFIX = ".sha1"
+_SHA256_SUFFIX = ".sha256"
 
 
 def default_cache_dir() -> Path:
@@ -60,15 +62,15 @@ def _read_note(path: Path) -> str | None:
 def _cached_is_trusted(target: Path, info: LauncherInfo) -> bool:
     if info.sha1 is not None:
         return sha1_file(target) == info.sha1.lower()
-    pinned_256 = _read_note(target.with_suffix(".sha256"))
+    pinned_256 = _read_note(target.with_suffix(_SHA256_SUFFIX))
     if pinned_256 is not None:
         return sha256_file(target) == pinned_256
-    pinned_1 = _read_note(target.with_suffix(".sha1"))
+    pinned_1 = _read_note(target.with_suffix(_SHA1_SUFFIX))
     return pinned_1 is not None and sha1_file(target) == pinned_1
 
 
 def _discard(target: Path) -> None:
-    for path in (target, target.with_suffix(".sha1"), target.with_suffix(".sha256")):
+    for path in (target, target.with_suffix(_SHA1_SUFFIX), target.with_suffix(_SHA256_SUFFIX)):
         path.unlink(missing_ok=True)
 
 
@@ -102,6 +104,6 @@ def ensure_launcher(
         with contextlib.suppress(OSError):
             partial.unlink(missing_ok=True)
     if info.sha1 is None:
-        target.with_suffix(".sha1").write_text(actual + "\n", encoding="ascii")
-        target.with_suffix(".sha256").write_text(sha256_file(target) + "\n", encoding="ascii")
+        target.with_suffix(_SHA1_SUFFIX).write_text(actual + "\n", encoding="ascii")
+        target.with_suffix(_SHA256_SUFFIX).write_text(sha256_file(target) + "\n", encoding="ascii")
     return target

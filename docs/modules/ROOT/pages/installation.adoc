@@ -14,7 +14,7 @@ pip install nvda-addon-testkit
 |2.x
 |2026.1 and later
 |3.13, 64-bit
-|3.11 to 3.14
+|3.13 to 3.14
 
 |1.x
 |2024.1 and later
@@ -28,7 +28,7 @@ releases to test against NVDA 2024.1 to 2025.3.
 
 The Python column for NVDA comes from NVDA's own source: its `createDevEnvironment.md` and
 `pyproject.toml` at each release tag (3.11 until 2025.3, 3.13 from 2026.1). The kit's host side runs
-under your own pytest and is tested on 3.11 to 3.14.
+under your own pytest: 2.x requires Python 3.13 or later (the version NVDA 2026.1 embeds) and is tested on 3.13 and 3.14; 1.x supports 3.11 to 3.14.
 
 == Configure
 

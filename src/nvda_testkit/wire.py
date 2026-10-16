@@ -16,7 +16,7 @@ contract test parses the spy source to enforce it.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, TypeAlias
+from typing import Any
 
 __all__ = [
     "PROTOCOL_VERSION",
@@ -29,6 +29,6 @@ __all__ = [
 PROTOCOL_VERSION = 1
 TOKEN_HEADER = "X-Testkit-Token"
 
-WirePayload: TypeAlias = Mapping[str, Any]
-ConfigSnapshot: TypeAlias = dict[str, Any]
-ConfigPath: TypeAlias = str | Sequence[str]
+type WirePayload = Mapping[str, Any]
+type ConfigSnapshot = dict[str, Any]
+type ConfigPath = str | Sequence[str]

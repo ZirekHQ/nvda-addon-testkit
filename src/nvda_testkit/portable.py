@@ -13,12 +13,12 @@ import zipfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Any
 
 from .errors import ProvisionError, UnsupportedPlatformError
 
-IniValue: TypeAlias = str | int | float | bool | list[Any] | tuple[Any, ...]
-IniTree: TypeAlias = "Mapping[str, IniValue | IniTree]"
+type IniValue = str | int | float | bool | list[Any] | tuple[Any, ...]
+type IniTree = Mapping[str, IniValue | IniTree]
 
 _NEEDS_QUOTES = frozenset(",#\"'=[]")
 _TRIPLE_QUOTES = ("'" * 3, '"' * 3)

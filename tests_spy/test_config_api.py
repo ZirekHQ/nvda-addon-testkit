@@ -4,12 +4,9 @@ import config
 import pytest
 from nvda_testkit_spy import config_api
 
-from tests_spy import nvda_stubs
-
 
 @pytest.fixture
 def api(event_queue):
-    config.conf = nvda_stubs.FakeConfigManager(nvda_stubs.DEFAULT_CONFIG)
     return config_api
 
 

@@ -55,18 +55,14 @@ def test_a_press_runs_on_the_main_thread_not_the_server_thread(api, event_queue)
     assert done.is_set()
 
 
-def test_a_gesture_with_no_bound_action_is_not_an_error(api):
-    inputCore.manager.emulateGesture.side_effect = inputCore.NoInputGestureAction()
-    try:
-        assert api.keys_press("NVDA+n") is True
-    finally:
-        inputCore.manager.emulateGesture.side_effect = None
+def test_a_gesture_with_no_bound_action_is_not_an_error(api, monkeypatch):
+    monkeypatch.setattr(
+        inputCore.manager.emulateGesture, "side_effect", inputCore.NoInputGestureAction()
+    )
+    assert api.keys_press("NVDA+n") is True
 
 
-def test_an_unexpected_emulation_failure_propagates(api):
-    inputCore.manager.emulateGesture.side_effect = RuntimeError("boom")
-    try:
-        with pytest.raises(RuntimeError, match="boom"):
-            api.keys_press("NVDA+n")
-    finally:
-        inputCore.manager.emulateGesture.side_effect = None
+def test_an_unexpected_emulation_failure_propagates(api, monkeypatch):
+    monkeypatch.setattr(inputCore.manager.emulateGesture, "side_effect", RuntimeError("boom"))
+    with pytest.raises(RuntimeError, match="boom"):
+        api.keys_press("NVDA+n")

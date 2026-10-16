@@ -18,6 +18,13 @@ from tests_spy import nvda_stubs  # noqa: E402
 _STUBS = nvda_stubs.install()
 
 
+@pytest.fixture(autouse=True)
+def _fresh_config(monkeypatch):
+    """A stub NVDA config no test can leave mutated for the next one."""
+    fresh = nvda_stubs.FakeConfigManager(nvda_stubs.DEFAULT_CONFIG)
+    monkeypatch.setattr(sys.modules["config"], "conf", fresh)
+
+
 @pytest.fixture
 def event_queue():
     """The fake NVDA main-thread queue, with auto-drain on by default."""
