@@ -102,6 +102,10 @@ takes the foreground.
 Windows to run the tests. NVDA is downloaded automatically — you do not need
 one installed, and nothing touches an NVDA you already have.
 
+Version 2.x tests against NVDA 2026.1 and later. Use 1.x for NVDA 2024.1 to 2025.3; see
+[Compatibility](docs/modules/ROOT/pages/installation.adoc#_compatibility) for the NVDA and
+Python versions each release supports.
+
 Tests run serially: only one NVDA can own a desktop session, so pytest-xdist
 with more than one worker is refused rather than silently producing nonsense.
 
