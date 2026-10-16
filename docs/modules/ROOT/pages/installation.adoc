@@ -5,6 +5,31 @@
 pip install nvda-addon-testkit
 ----
 
+== Compatibility
+
+[cols="1,1,2,1"]
+|===
+|nvda-addon-testkit |NVDA |Python inside NVDA (the spy add-on) |Python running pytest
+
+|2.x
+|2026.1 and later
+|3.13, 64-bit
+|3.11 to 3.14
+
+|1.x
+|2024.1 and later
+|3.11, 32-bit (NVDA 2024.1 to 2025.3); 3.13, 64-bit (NVDA 2026.1 and later)
+|3.11 to 3.14
+|===
+
+From 2.0 the spy add-on declares `minimumNVDAVersion = 2026.1`, so NVDA refuses to load it on older
+releases: a pinned `--nvda-version` before 2026.1 fails with a `HandshakeTimeout`. Use the 1.x
+releases to test against NVDA 2024.1 to 2025.3.
+
+The Python column for NVDA comes from NVDA's own source: its `createDevEnvironment.md` and
+`pyproject.toml` at each release tag (3.11 until 2025.3, 3.13 from 2026.1). The kit's host side runs
+under your own pytest and is tested on 3.11 to 3.14.
+
 == Configure
 
 [source,toml]
@@ -14,8 +39,7 @@ addon-bundle = "dist/my-addon-*.nvda-addon"
 nvda-channel = "stable"
 ----
 
-Python 3.11 through 3.14 is supported. Every key has a matching pytest flag where noted; flags win
-over `pyproject.toml`.
+Every key has a matching pytest flag where noted; flags win over `pyproject.toml`.
 
 [cols="2,2,1,3"]
 |===
