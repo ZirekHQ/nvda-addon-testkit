@@ -10,6 +10,7 @@ import pytest
 
 FAKE = Path(__file__).parent / "fake_nvda.py"
 HANDSHAKE = "testkit-handshake.json"
+NO_HANDSHAKE_MARKER = "fake-nvda-skipped-handshake"
 
 
 def _spawn(tmp_path, token="tok", script=None):
@@ -37,12 +38,21 @@ def _await_handshake(tmp_path, deadline=15.0):
     raise AssertionError(f"no handshake file after {deadline}s")
 
 
+def _await_file(path, deadline=15.0):
+    end = time.monotonic() + deadline
+    while time.monotonic() < end:
+        if path.is_file():
+            return
+        time.sleep(0.02)
+    raise AssertionError(f"{path.name} never appeared within {deadline}s")
+
+
 @pytest.fixture
 def spawned(tmp_path):
     processes = []
 
-    def spawn(**kwargs):
-        proc = _spawn(tmp_path, **kwargs)
+    def spawn(out_dir=tmp_path, **kwargs):
+        proc = _spawn(out_dir, **kwargs)
         processes.append(proc)
         return proc
 
@@ -81,7 +91,7 @@ def test_handshake_delay_knob_is_honoured(spawned, tmp_path):
 
 def test_never_handshake_knob_never_writes_the_file(spawned, tmp_path):
     proc = spawned(script={"never_handshake": True})
-    time.sleep(0.5)
+    _await_file(tmp_path / NO_HANDSHAKE_MARKER)
     assert proc.poll() is None
     assert not (tmp_path / HANDSHAKE).is_file()
 

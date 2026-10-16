@@ -31,6 +31,7 @@ _REMOTE_TYPE = re.compile(r"^<class '(?:[\w.]+\.)?(\w+)'>:")
 
 _SYNTAX_TYPES = frozenset({"SyntaxError", "IndentationError", "TabError"})
 _AUTH_TYPES = frozenset({"PermissionError"})
+_WRAPPED_TYPE = re.compile(r"^\s*(\w+):")
 _COMPILING_METHODS = frozenset({"eval_in_nvda", "exec_in_nvda", "exec_in_nvda_nowait"})
 
 
@@ -40,18 +41,46 @@ def remote_exception_type(fault_string: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _handler_exception_type(fault_string: str, remote: str | None) -> str | None:
+    """The type of the exception a handler raised, read through the spy's RuntimeError wrapper."""
+    if remote != "RuntimeError":
+        return remote
+    match = _WRAPPED_TYPE.match(fault_string.partition(":")[2])
+    return match.group(1) if match else remote
+
+
 def _classify_fault(method: str, fault: xmlrpc.client.Fault) -> RpcError:
     message = fault.faultString
     remote = remote_exception_type(message)
-    if remote in _AUTH_TYPES or "AUTH:" in message:
+    if remote in _AUTH_TYPES:
         return AuthError(
             f"The spy rejected our token calling {method!r}. "
             "A stale NVDA from a previous run is the usual cause. "
             f"Remote said: {message}"
         )
-    if method in _COMPILING_METHODS and remote in _SYNTAX_TYPES:
+    if method in _COMPILING_METHODS and _handler_exception_type(message, remote) in _SYNTAX_TYPES:
         return ScenarioSyntaxError(f"{method}() was given source that doesn't compile: {message}")
     return RpcError(f"{method}() failed inside NVDA: {message}")
+
+
+def _classify_protocol_error(method: str, error: xmlrpc.client.ProtocolError) -> RpcError:
+    if error.errcode == 401:
+        return AuthError(
+            f"The spy rejected our token header calling {method!r} (HTTP 401). "
+            "A stale NVDA from a previous run is the usual cause."
+        )
+    return ConnectionLost(
+        f"The spy answered {method!r} with HTTP {error.errcode} {error.errmsg} at {error.url}."
+    )
+
+
+def _observe(last_seen: Callable[[], Any] | None) -> Any:
+    if last_seen is None:
+        return None
+    try:
+        return last_seen()
+    except RpcError:
+        return _UNAVAILABLE
 
 
 class _TimeoutTransport(xmlrpc.client.Transport):
@@ -110,15 +139,7 @@ class RpcClient:
         except xmlrpc.client.Fault as fault:
             raise _classify_fault(method, fault) from fault
         except xmlrpc.client.ProtocolError as error:
-            if error.errcode == 401:
-                raise AuthError(
-                    f"The spy rejected our token header calling {method!r} (HTTP 401). "
-                    "A stale NVDA from a previous run is the usual cause."
-                ) from error
-            raise ConnectionLost(
-                f"The spy answered {method!r} with HTTP {error.errcode} "
-                f"{error.errmsg} at {error.url}."
-            ) from error
+            raise _classify_protocol_error(method, error) from error
         except (OSError, http.client.HTTPException) as error:
             raise ConnectionLost(
                 f"Could not reach the spy on 127.0.0.1:{self.port} calling {method!r}. "
@@ -143,13 +164,7 @@ class RpcClient:
             if result:
                 return result
             if time.monotonic() >= deadline:
-                observed = None
-                if last_seen is not None:
-                    try:
-                        observed = last_seen()
-                    except RpcError:
-                        observed = _UNAVAILABLE
-                raise WaitTimeout(description, scaled, observed)
+                raise WaitTimeout(description, scaled, _observe(last_seen))
             time.sleep(interval)
 
     def close(self) -> None:

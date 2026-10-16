@@ -6,6 +6,7 @@ from __future__ import annotations
 import contextlib
 import json
 import secrets
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -60,6 +61,21 @@ def fake_nvda(tmp_path):
     handle = FakeNvdaHandle(out_dir=tmp_path / "out", token=secrets.token_hex(16))
     handle.out_dir.mkdir(parents=True, exist_ok=True)
     return handle
+
+
+@pytest.fixture
+def relaunched_pid():
+    """The pid of a process this test owns, to announce as NVDA's relaunch.
+
+    Adopting a handshake means kill() SIGTERMs its pid, so a fabricated one
+    would hit whatever unrelated process happens to hold it. List it before
+    the fixture that kills the adopted process: teardown runs in reverse, and
+    the pid must not be reaped and reused before that kill.
+    """
+    stand_in = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+    yield stand_in.pid
+    stand_in.kill()
+    stand_in.wait(timeout=30)
 
 
 @pytest.fixture

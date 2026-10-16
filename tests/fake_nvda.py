@@ -26,6 +26,7 @@ from pathlib import Path
 from xmlrpc.server import SimpleXMLRPCServer
 
 HANDSHAKE_FILENAME = "testkit-handshake.json"
+NO_HANDSHAKE_MARKER = "fake-nvda-skipped-handshake"
 ADDONS_STATE_FILENAME = "testkit-addons.json"
 
 _SCALARS = (str, int, float, bool, type(None))
@@ -107,10 +108,13 @@ class FakeSpy:
         if handler is None:
             raise Exception(f"UNKNOWN: no such method {method!r}")
         if not params or not isinstance(params[0], str):
-            raise Exception("AUTH: first argument must be the session token")
+            raise PermissionError("AUTH: first argument must be the session token")
         if not hmac.compare_digest(params[0], self._token):
-            raise Exception("AUTH: token rejected; is a stale NVDA still running?")
-        return handler(*params[1:])
+            raise PermissionError("AUTH: token rejected; is a stale NVDA still running?")
+        try:
+            return handler(*params[1:])
+        except Exception as error:
+            raise RuntimeError(f"{type(error).__name__}: {error}") from error
 
     def rpc_ping(self):
         return "pong"
@@ -350,6 +354,11 @@ def _serve() -> int:
         temporary = directory / (HANDSHAKE_FILENAME + ".part")
         temporary.write_text(json.dumps(payload), encoding="utf-8")
         os.replace(temporary, directory / HANDSHAKE_FILENAME)
+
+    else:
+        directory = Path(out_dir)
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / NO_HANDSHAKE_MARKER).write_text("", encoding="utf-8")
 
     spy.stop_requested.wait()
     server.shutdown()

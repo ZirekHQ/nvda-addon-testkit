@@ -4,6 +4,13 @@
 Binds 127.0.0.1 only, on an ephemeral port, and publishes that port through a
 handshake file written with write-then-rename so the host never reads a
 half-written one.
+
+The transport is plain HTTP: both tokens travel in cleartext over loopback.
+They keep out other local processes that cannot read the handshake file,
+which is owner-only on POSIX; on Windows it inherits the output directory's
+ACL, which the spy does not tighten. They do not stop a same-host attacker
+able to capture loopback traffic, so run the spy only on a machine dedicated
+to the test session.
 """
 
 from __future__ import annotations
@@ -14,6 +21,7 @@ import json
 import os
 import secrets
 import threading
+import time
 from typing import Any, Optional
 from xmlrpc.server import SimpleXMLRPCRequestHandler, SimpleXMLRPCServer
 
@@ -30,6 +38,9 @@ HANDSHAKE_FILENAME = "testkit-handshake.json"
 STOP_TIMEOUT = 5.0
 PROTOCOL_VERSION = 1
 TOKEN_HEADER = "X-Testkit-Token"
+MAX_DISCARD_BYTES = 16 * 1024 * 1024
+_DISCARD_CHUNK = 64 * 1024
+DISCARD_DEADLINE = 2.0
 
 
 def _handler_for(session_token: str) -> type[SimpleXMLRPCRequestHandler]:
@@ -37,11 +48,39 @@ def _handler_for(session_token: str) -> type[SimpleXMLRPCRequestHandler]:
         def do_POST(self) -> None:
             supplied = self.headers.get(TOKEN_HEADER, "")
             if not hmac.compare_digest(supplied.encode("utf-8"), session_token.encode("utf-8")):
+                self._discard_body()
                 self.send_response(401)
                 self.send_header("Content-Length", "0")
                 self.end_headers()
+                self.close_connection = True
                 return
             super().do_POST()
+
+        def _discard_body(self) -> None:
+            """Read the unread request body, up to MAX_DISCARD_BYTES and DISCARD_DEADLINE.
+
+            Closing a socket with unread input makes the OS send a reset,
+            which can destroy the 401 before the client reads it. The server
+            is single-threaded, so a client that declares more than it sends
+            must not be able to hold it past the deadline.
+            """
+            try:
+                remaining = min(int(self.headers.get("Content-Length", 0)), MAX_DISCARD_BYTES)
+            except ValueError:
+                return
+            deadline = time.monotonic() + DISCARD_DEADLINE
+            try:
+                while remaining > 0:
+                    left = deadline - time.monotonic()
+                    if left <= 0:
+                        return
+                    self.connection.settimeout(left)
+                    chunk = self.rfile.read1(min(remaining, _DISCARD_CHUNK))
+                    if not chunk:
+                        return
+                    remaining -= len(chunk)
+            except OSError:
+                return
 
     return TokenCheckingHandler
 

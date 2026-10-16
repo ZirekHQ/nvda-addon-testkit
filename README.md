@@ -4,7 +4,7 @@
 
 End-to-end testing for NVDA add-ons, against a real NVDA, in CI.
 
-Documentation: [docs/](docs/modules/ROOT/pages/index.adoc). Troubleshooting: [docs/modules/ROOT/pages/troubleshooting.adoc](docs/modules/ROOT/pages/troubleshooting.adoc). Security: [.github/SECURITY.md](.github/SECURITY.md).
+Documentation: [docs/](docs/modules/ROOT/pages/index.adoc). Troubleshooting: [docs/modules/ROOT/pages/troubleshooting.adoc](docs/modules/ROOT/pages/troubleshooting.adoc). Security: [.github/SECURITY.md](.github/SECURITY.md). Release notes: [GitHub Releases](https://github.com/ZirekHQ/nvda-addon-testkit/releases).
 
 Your add-on's logic can be unit-tested with stubs. What cannot be stubbed is
 whether it installs, registers, and behaves inside NVDA itself. This kit

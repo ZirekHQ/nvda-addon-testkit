@@ -1,6 +1,7 @@
 import http.client
 import json
 import os
+import socket
 import stat
 import sys
 import threading
@@ -44,8 +45,8 @@ def proxy(running, session_token):
     )
 
 
-def _post_status(port, headers):
-    body = xmlrpc.client.dumps(("tok",), "ping")
+def _post_status(port, headers, body=None):
+    body = xmlrpc.client.dumps(("tok",), "ping") if body is None else body
     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
     try:
         connection.request("POST", "/RPC2", body, headers)
@@ -57,6 +58,22 @@ def _post_status(port, headers):
 def test_a_post_without_the_token_header_is_401(running):
     _, port = running
     assert _post_status(port, {}) == 401
+
+
+def test_a_rejected_post_with_a_large_body_still_reads_the_401(running):
+    _, port = running
+    body = "x" * (4 * 1024 * 1024)
+    assert _post_status(port, {}, body) == 401
+
+
+def test_a_rejected_post_that_stalls_mid_body_still_gets_the_401(running, monkeypatch):
+    _, port = running
+    monkeypatch.setattr(server_module, "DISCARD_DEADLINE", 0.3)
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as stalled:
+        stalled.sendall(
+            b"POST /RPC2 HTTP/1.1\r\nHost: x\r\nContent-Length: 1000000\r\n\r\nonly a few bytes"
+        )
+        assert stalled.recv(64).startswith(b"HTTP/1.0 401")
 
 
 def test_a_post_with_the_wrong_token_header_is_401(running):

@@ -59,6 +59,8 @@ Releases are tag-driven, not version-bumped by hand — `pyproject.toml` has no 
 3. Once approved, `prepare-release.yaml`'s `tag-and-release` job tags `main` at the resolved commit, force-moves the `v<major>` tag consumers pin (README and GitHub Marketplace listings use `@v1`), and publishes the GitHub Release with auto-generated notes.
 4. That tag feeds `publish-python.yaml`, which builds the sdist/wheel and uploads to PyPI via Trusted Publishing — no token to rotate.
 
+If the PyPI upload fails after the GitHub Release already went out, retry it without re-tagging: Actions tab → **Publish Python** → Run workflow from `main`, with `tag` set to the existing `vX.Y.Z` tag. It builds that tag, not the branch you dispatch from, and waits on the same `release` environment approval.
+
 ### Why not fully automate this (conventional commits + semantic-release)?
 
 The version bump itself *is* automated — computed from commit prefixes since the last tag. What's deliberately kept manual is the human approval gate before anything tags or publishes: pre-1.0 semver bumps (does this `feat:` deserve a minor, or does it actually break the fixture API?) are judgment calls worth a maintainer's eyes before they go to PyPI and the Marketplace. Worth revisiting if release volume ever makes that approval step the actual bottleneck.

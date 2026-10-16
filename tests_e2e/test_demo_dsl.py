@@ -1,8 +1,4 @@
-"""The demo add-on driven through the DSL. Each tagged block is a docs example.
-
-This file assumes the demo add-on is not installed when it starts: test_demo_addon.py,
-sorted earlier, uninstalls it last.
-"""
+"""The demo add-on driven through the DSL. Each tagged block is a docs example."""
 
 import pytest
 
