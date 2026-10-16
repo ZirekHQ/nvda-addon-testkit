@@ -140,7 +140,7 @@ jobs:
             exit 1
           fi
 
-      # README documents `uses: zirekhq/nvda-addon-testkit@v1`, and GitHub Marketplace
+      # README documents `uses: zirekhq/nvda-addon-testkit@v<major>`, and GitHub Marketplace
       # consumers pin the same tag -- this step keeps it on the latest release in its major line.
       - name: Move major version tag
         run: |

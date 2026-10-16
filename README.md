@@ -50,7 +50,7 @@ jobs:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v7
-      - uses: zirekhq/nvda-addon-testkit@v1
+      - uses: zirekhq/nvda-addon-testkit@v2
         with:
           nvda-channel: stable
       - run: pytest tests_e2e/ -v
