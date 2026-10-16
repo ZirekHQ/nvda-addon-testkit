@@ -96,3 +96,8 @@ def test_faults_map_to_typed_errors():
     assert type(_classify_fault("speech_index", syntax)) is RpcError
     assert isinstance(_classify_fault("speech_index", auth), AuthError)
     assert type(_classify_fault("speech_index", other)) is RpcError
+
+
+def test_user_code_mentioning_auth_is_not_an_auth_error():
+    wrapped = xmlrpc.client.Fault(1, "<class 'RuntimeError'>:ValueError: AUTH: from a scenario")
+    assert type(_classify_fault("eval_in_nvda", wrapped)) is RpcError

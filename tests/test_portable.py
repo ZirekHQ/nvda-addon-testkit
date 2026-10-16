@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -105,6 +106,49 @@ def test_create_portable_wraps_a_timeout_in_a_testkit_error(tmp_path, monkeypatc
         portable.create_portable(launcher, tmp_path / "portable")
     with pytest.raises(TestkitError):
         portable.create_portable(launcher, tmp_path / "portable")
+
+
+def _fake_launcher(tmp_path, monkeypatch, *, returncode: int, writes_exe: bool):
+    launcher = tmp_path / "launcher.exe"
+    launcher.write_bytes(b"stub")
+
+    def run(argv, **kwargs):
+        dest = Path(argv[2].removeprefix("--portable-path="))
+        if writes_exe:
+            dest.mkdir(parents=True)
+            (dest / "nvda.exe").write_bytes(b"exe")
+        return subprocess.CompletedProcess(argv, returncode, stdout="out", stderr="err")
+
+    monkeypatch.setattr(portable.sys, "platform", "win32")
+    monkeypatch.setattr(portable.subprocess, "run", run)
+    return launcher
+
+
+def test_create_portable_seeds_the_user_config(tmp_path, monkeypatch):
+    launcher = _fake_launcher(tmp_path, monkeypatch, returncode=0, writes_exe=True)
+
+    created = portable.create_portable(launcher, tmp_path / "portable")
+
+    assert created.exe == tmp_path / "portable" / "nvda.exe"
+    assert (created.user_config / "nvda.ini").is_file()
+    assert created.addons_dir.is_dir()
+
+
+@pytest.mark.parametrize(("returncode", "writes_exe"), [(1, True), (0, False)])
+def test_create_portable_reports_a_failed_launcher_run(
+    tmp_path, monkeypatch, returncode, writes_exe
+):
+    launcher = _fake_launcher(tmp_path, monkeypatch, returncode=returncode, writes_exe=writes_exe)
+
+    with pytest.raises(ProvisionError, match=f"exit {returncode}"):
+        portable.create_portable(launcher, tmp_path / "portable")
+
+
+def test_create_portable_rejects_a_missing_launcher(tmp_path, monkeypatch):
+    monkeypatch.setattr(portable.sys, "platform", "win32")
+
+    with pytest.raises(ProvisionError, match="Launcher not found"):
+        portable.create_portable(tmp_path / "absent.exe", tmp_path / "portable")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="checks the non-Windows guard")

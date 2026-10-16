@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 from logHandler import log
 from nvda_testkit_spy import log_tap
@@ -57,8 +59,6 @@ def test_a_message_that_cannot_be_formatted_is_captured_with_a_placeholder(tap):
     class _Unprintable:
         def __str__(self):
             raise RuntimeError("no string for you")
-
-    import logging
 
     record = logging.LogRecord("test", logging.INFO, __file__, 1, _Unprintable(), None, None)
     log_tap._HANDLER.emit(record)

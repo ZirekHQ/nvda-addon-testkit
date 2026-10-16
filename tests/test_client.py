@@ -159,13 +159,13 @@ def test_restart_nvda_refuses_before_touching_the_handshake_file(make_client):
     assert client.process.handshake_path.exists()
 
 
-def test_restart_nvda_adopts_the_replacement_handshake(permissive, monkeypatch):
+def test_restart_nvda_adopts_the_replacement_handshake(relaunched_pid, permissive, monkeypatch):
     proc = permissive.process
     handshake = proc.handshake
 
     def fake_core_restart(source):
         assert "core" in source and "restart" in source
-        payload = _relaunch_payload(handshake, handshake.pid + 1)
+        payload = _relaunch_payload(handshake, relaunched_pid)
         proc.handshake_path.write_text(json.dumps(payload), encoding="utf-8")
         raise ConnectionLost("connection dropped mid-response, as a real restart would")
 
@@ -173,7 +173,7 @@ def test_restart_nvda_adopts_the_replacement_handshake(permissive, monkeypatch):
 
     permissive.restart_nvda(timeout=5)
 
-    assert permissive.process.handshake.pid == handshake.pid + 1
+    assert permissive.process.handshake.pid == relaunched_pid
 
 
 def test_restart_nvda_does_not_swallow_a_real_error_from_the_trigger_call(permissive, monkeypatch):
@@ -269,3 +269,26 @@ def test_an_indentation_error_in_exec_also_raises_scenariosyntaxerror(permissive
     __name__, so the wire-detection substring check must name them too."""
     with pytest.raises(ScenarioSyntaxError):
         permissive.exec("def f():\nreturn 1")
+
+
+def test_a_wrapped_handler_permissionerror_is_an_rpcerror_not_an_autherror():
+    import xmlrpc.client
+
+    from nvda_testkit.errors import AuthError, RpcError
+    from nvda_testkit.rpcclient import _classify_fault
+
+    wrapped = xmlrpc.client.Fault(1, "<class 'RuntimeError'>:PermissionError: not a token failure")
+    error = _classify_fault("ping", wrapped)
+    assert isinstance(error, RpcError)
+    assert not isinstance(error, AuthError)
+
+
+def test_a_wrapped_handler_syntaxerror_is_a_scenariosyntaxerror():
+    import xmlrpc.client
+
+    from nvda_testkit.rpcclient import _classify_fault
+
+    wrapped = xmlrpc.client.Fault(
+        1, "<class 'RuntimeError'>:SyntaxError: invalid syntax\nTraceback"
+    )
+    assert isinstance(_classify_fault("exec_in_nvda", wrapped), ScenarioSyntaxError)

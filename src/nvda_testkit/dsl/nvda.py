@@ -7,24 +7,17 @@ import re
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
-from typing import Any, Concatenate, ParamSpec, TypeVar, cast, overload
+from typing import Concatenate, ParamSpec, TypeVar, cast, overload
 
-from ..actionmark import ActionMark
-from ..client import NvdaClient, ProcessHandle
-from ..namespaces.addons import AddonsNamespace, AddonState
-from ..namespaces.braille import BrailleNamespace
-from ..namespaces.config import ConfigNamespace
-from ..namespaces.keys import KeysNamespace
-from ..namespaces.log import LogNamespace
-from ..namespaces.speech import SpeechNamespace
-from ..rpcclient import RpcClient
-from ..settings import TestkitSettings
-from ..version import NvdaVersion
+from ..client import NvdaClient
+from ..namespaces.addons import AddonState
 from .dialogs import Dialogs
 from .hearing import Hearing
 from .lifecycle import Lifecycle, no_bundle
 from .logsteps import LogSteps
 from .matching import build_matcher
+from .passthrough import ClientPassThrough
+from .teardown import run_all
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -44,103 +37,17 @@ def _guarded(
     return cast("Callable[Concatenate[Nvda, _P], _R]", wrapper)
 
 
-def _failure_of(step: Callable[[], None]) -> Exception | None:
-    try:
-        step()
-    except Exception as error:
-        return error
-    return None
-
-
-def _describe(error: Exception) -> str:
-    if isinstance(error, AssertionError):
-        return str(error)
-    return f"{type(error).__name__}: {error}"
-
-
-def _join_problems(failures: list[Exception]) -> str:
-    return "\n".join(
-        f"Teardown problem {number}: {_describe(failure)}"
-        for number, failure in enumerate(failures, start=1)
-    )
-
-
-class Nvda:
+class Nvda(ClientPassThrough):
     def __init__(self, client: NvdaClient, *, bundle: Callable[[], Path] = no_bundle) -> None:
-        self._client = client
+        super().__init__(client)
         self._hearing = Hearing(client, client.settings)
         self._logs = LogSteps(client, client.settings)
         self._lifecycle = Lifecycle(client, bundle)
         self._dialogs = Dialogs(client)
 
-    @property
-    def client(self) -> NvdaClient:
-        return self._client
-
-    @property
-    def settings(self) -> TestkitSettings:
-        return self._client.settings
-
-    @property
-    def speech(self) -> SpeechNamespace:
-        return self._client.speech
-
-    @property
-    def braille(self) -> BrailleNamespace:
-        return self._client.braille
-
-    @property
-    def keys(self) -> KeysNamespace:
-        return self._client.keys
-
-    @property
-    def config(self) -> ConfigNamespace:
-        return self._client.config
-
-    @property
-    def log(self) -> LogNamespace:
-        return self._client.log
-
-    @property
-    def addons(self) -> AddonsNamespace:
-        return self._client.addons
-
-    @property
-    def process(self) -> ProcessHandle:
-        return self._client.process
-
-    @property
-    def version(self) -> NvdaVersion:
-        return self._client.version
-
-    @property
-    def rpc(self) -> RpcClient:
-        return self._client.rpc
-
-    def wait_until_idle(self, *, timeout: float = 10.0) -> None:
-        self._client.wait_until_idle(timeout=timeout)
-
-    def reset(self) -> None:
-        self._client.reset()
-
     @_guarded
     def restart_harness(self, *, timeout: float = 60.0) -> None:
         self._client.restart_harness(timeout=timeout)
-
-    def eval(self, source: str) -> Any:
-        return self._client.eval(source)
-
-    def exec(self, source: str) -> Any:
-        return self._client.exec(source)
-
-    def exec_nowait(self, source: str, *, label: str = "queueing a scenario") -> None:
-        self._client.exec_nowait(source, label=label)
-
-    def simulate_modal(self, gesture: str = "enter", *, timeout: float = 10.0) -> bool:
-        return self._client.simulate_modal(gesture, timeout=timeout)
-
-    def close(self) -> None:
-        self._client.close()
 
     def _within(self, within: float | None) -> float:
         return self.settings.timeout if within is None else within
@@ -182,15 +89,6 @@ class Nvda:
             mark=self._client.last_action,
         )
 
-    def _pid(self) -> int | None:
-        handshake = self._client.process.handshake
-        return handshake.pid if handshake else None
-
-    def _search_mark(self, entry: ActionMark, pid: int | None) -> ActionMark:
-        if self._pid() == pid:
-            return entry
-        return ActionMark(0, "relaunching NVDA")
-
     @contextmanager
     def expecting_speech(
         self,
@@ -202,11 +100,8 @@ class Nvda:
         __tracebackhide__ = True
         self._dialogs.require_none_open()
         matcher = build_matcher(text, matching)
-        entry = self._client.mark_action("starting the block")
-        pid = self._pid()
-        yield
-        mark = self._search_mark(entry, pid)
-        self._hearing.should_hear(matcher, within=self._within(within), mark=mark)
+        with self._hearing.expecting(matcher, within=self._within(within)):
+            yield
 
     @overload
     def should_not_hear(self, text: str, *, for_seconds: float = 1.0) -> None: ...
@@ -279,11 +174,10 @@ class Nvda:
 
     def finish(self) -> None:
         __tracebackhide__ = True
-        steps = (
-            self._logs.check_at_teardown,
-            self._dialogs.close_leftover,
-            self._lifecycle.undo_all,
+        run_all(
+            (
+                self._logs.check_at_teardown,
+                self._dialogs.close_leftover,
+                self._lifecycle.undo_all,
+            )
         )
-        failures = [failure for failure in map(_failure_of, steps) if failure is not None]
-        if failures:
-            raise AssertionError(_join_problems(failures)) from failures[0]
