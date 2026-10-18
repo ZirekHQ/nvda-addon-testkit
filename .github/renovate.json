@@ -1,4 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>austek/renovate-config"]
+  "extends": ["github>austek/renovate-config"],
+  "packageRules": [
+    {
+      "description": "onnxruntime, torch and PyYAML publish no Python 3.15 wheels, which the CI jobs install",
+      "matchDepNames": ["python"],
+      "allowedVersions": "<3.15"
+    }
+  ]
 }
