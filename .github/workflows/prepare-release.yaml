@@ -179,7 +179,7 @@ jobs:
       ${{ !cancelled() && inputs.dry_run != true &&
       needs.tag-and-release.result == 'success' && needs.pypi.result == 'success' }}
     permissions: {}
-    uses: ZirekHQ/.github/.github/workflows/announce-release.yaml@52615e22ae945467ecd94ebde50ef51790b21dd1 # main
+    uses: ZirekHQ/.github/.github/workflows/announce-release.yaml@aeeb653e77286d2bc445c6a34c0125acc6c60b6c # main
     with:
       tag: v${{ needs.compute-version.outputs.version }}
     secrets:
