@@ -27,7 +27,7 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-xdist>=3.0",
     "ruff==0.17.3",
-    "mypy==2.4.0",
+    "mypy==2.4.1",
     "pip-audit>=2.7",
     "build>=1.2",
     "twine>=5.0",
