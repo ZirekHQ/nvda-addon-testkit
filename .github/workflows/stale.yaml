@@ -32,7 +32,7 @@ jobs:
           remove-pr-stale-when-updated: false
           close-issue-reason: not_planned
           stale-issue-message: |
-            This issue has had no activity for 30 days, so it's been marked as `stale`.
+            This issue has had no activity for 30 days, so it's been marked as `status/stale`.
 
             If this is still relevant, please reply with an update -- e.g. whether it still reproduces on the latest [release](https://github.com/ZirekHQ/nvda-addon-testkit/releases/latest) -- and the `status/stale` label will be removed.
 
